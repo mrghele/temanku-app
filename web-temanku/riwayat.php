@@ -114,7 +114,7 @@ foreach ($meta as $key => $_) $data[$key] = riwayat_data($pegawai, $key, $segar)
     <span class="badge badge--rose"><?= $detail === null ? 'Gagal dimuat' : count($detail) . ' data' ?></span>
   </div>
   <?php if ($detail === null): ?>
-    <p style="margin:0;font-size:13px;color:var(--muted-2)">Riwayat belum dapat dimuat dari SIMPEG. Silakan coba lagi beberapa saat lagi.</p>
+    <p style="margin:0;font-size:13px;color:var(--muted-2)">Riwayat belum dapat dimuat dari SIMPEG<?= isset($GLOBALS['riwayat_api_kode']) ? ' (kode ' . (int)$GLOBALS['riwayat_api_kode'] . ')' : '' ?>. Silakan coba lagi beberapa saat lagi.</p>
   <?php elseif (!$detail): ?>
     <p style="margin:0;font-size:13px;color:var(--muted-2)">Belum ada data pada kategori ini.</p>
   <?php else: ?>

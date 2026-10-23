@@ -68,12 +68,44 @@ function riwayat_kategori_daftar(array $pegawai): array
     return array_filter($daftar, static function (array $k): bool { return $k[3]; });
 }
 
-/** Ambil baris mentah satu endpoint rw-*; null bila API gagal (beda dengan [] = memang belum ada data). */
+/**
+ * Ambil baris mentah satu endpoint rw-*; null bila API gagal (beda dengan [] = memang belum ada data).
+ * Endpoint rw-* dipasang di grup SIMPEG (SIMPEG memanggilnya lewat API_SIMPEG); grup TEMANKU dicoba sebagai cadangan.
+ * Kode HTTP terakhir yang gagal dicatat di $GLOBALS['riwayat_api_kode'] untuk pesan & log.
+ */
 function riwayat_api(string $jenis, string $pnsId): ?array
 {
-    $r = temanku_get('/asn/rw-' . $jenis . '/pns/' . rawurlencode($pnsId));
-    if ($r === null) return null;
-    return array_values(array_filter(api_rows($r), 'is_array'));
+    $endpoint = '/asn/rw-' . $jenis . '/pns/' . rawurlencode($pnsId);
+    foreach ([API_SIMPEG, API_TEMANKU] as $base) {
+        [$kode, $json] = riwayat_api_get($base, $endpoint);
+        if ($kode >= 200 && $kode < 300 && is_array($json)) {
+            return array_values(array_filter(api_rows($json), 'is_array'));
+        }
+        $GLOBALS['riwayat_api_kode'] = $kode;
+        error_log('TEMANKU riwayat: GET ' . $base . $endpoint . ' gagal (HTTP ' . $kode . ')');
+    }
+    return null;
+}
+
+/** GET JSON dengan token layanan + token SSO (pola SIMPEG); mengembalikan [kode HTTP, data]. Kode 0 = koneksi gagal. */
+function riwayat_api_get(string $base, string $endpoint): array
+{
+    $token = api_service_token();
+    if (!$token) return [0, null];
+    $headers = ['Accept: application/json', 'Authorization: Bearer ' . $token];
+    if (!empty($_SESSION['access_token'])) $headers[] = 'Auth: Bearer ' . $_SESSION['access_token'];
+    $ch = curl_init(rtrim($base, '/') . $endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_FOLLOWLOCATION => false,
+    ]);
+    $res  = curl_exec($ch);
+    $kode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return [$kode, is_string($res) ? json_decode($res, true) : null];
 }
 
 /**
