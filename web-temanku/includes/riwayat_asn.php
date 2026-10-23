@@ -129,24 +129,24 @@ function riwayat_muat(string $pnsId, string $kategori): ?array
     switch ($kategori) {
         case 'pendidikan':
             $src = riwayat_api('pendidikan', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_pendidikan', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_pendidikan', 'pendidikan');
         case 'diklat':
             $pim = riwayat_api('diklatpim', $pnsId);
             $krs = riwayat_api('kursus', $pnsId);
             if ($pim === null && $krs === null) return null;
-            return array_merge(array_map('riwayat_baris_diklatpim', $pim ?? []), array_map('riwayat_baris_kursus', $krs ?? []));
+            return array_merge(riwayat_bentuk($pim ?? [], 'riwayat_baris_diklatpim', 'diklatpim'), riwayat_bentuk($krs ?? [], 'riwayat_baris_kursus', 'kursus'));
         case 'keluarga':
             $src = riwayat_api('pasangan', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_pasangan', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_pasangan', 'pasangan');
         case 'pangkat':
             $src = riwayat_api('golongan', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_golongan', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_golongan', 'golongan');
         case 'penghargaan':
             $src = riwayat_api('penghargaan', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_penghargaan', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_penghargaan', 'penghargaan');
         case 'cpns':
             $src = riwayat_api('cpns', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_cpns', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_cpns', 'cpns');
         case 'jabatan':
         case 'tugas':
             $src = riwayat_api('jabatan', $pnsId);
@@ -156,18 +156,34 @@ function riwayat_muat(string $pnsId, string $kategori): ?array
                 $pg = strtoupper(trim((string)($g['jenis_penugasan'] ?? '')));
                 return ($kategori === 'tugas') !== ($pg === '' || $pg === 'D');
             });
-            return array_map('riwayat_baris_jabatan', array_values($src));
+            return riwayat_bentuk(array_values($src), 'riwayat_baris_jabatan', $kategori);
         case 'kredit':
             $src = riwayat_api('pak', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_pak', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_pak', 'pak');
         case 'kinerja':
             $src = riwayat_api('kinerja', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_kinerja', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_kinerja', 'kinerja');
         case 'disiplin':
             $src = riwayat_api('hukdis', $pnsId);
-            return $src === null ? null : array_map('riwayat_baris_hukdis', $src);
+            return $src === null ? null : riwayat_bentuk($src, 'riwayat_baris_hukdis', 'hukdis');
     }
     return null;
+}
+
+/**
+ * Bentuk baris tampilan + jenis usulan (sama dengan jenis usulan_riwayat API Go) + nilai awal form usulan "ubah".
+ * Nilai awal hanya berisi kolom data (path berkas tidak pernah ikut), lihat riwayat_usul_awal().
+ */
+function riwayat_bentuk(array $src, callable $baris, string $jenis): array
+{
+    $out = [];
+    foreach ($src as $g) {
+        $row = $baris($g);
+        $row['jenis'] = $jenis;
+        $row['awal'] = function_exists('riwayat_usul_awal') ? riwayat_usul_awal($jenis, $g) : [];
+        $out[] = $row;
+    }
+    return $out;
 }
 
 /* ---------- Pembentuk baris per kategori ---------- */

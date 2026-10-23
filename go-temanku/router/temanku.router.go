@@ -223,8 +223,8 @@ func RegisterTemankuRoutes(r *gin.Engine) {
 		api.GET("/asn/rw-pendidikan/:nip", middleware.DualAuthMiddleware(), asn.GetAllRWPendidikanByNIPs)
 		api.GET("/asn/rw-pendidikan/id/:id", middleware.DualAuthMiddleware(), asn.GetRWPendidikanByID)
 
-		// RIWAYAT ASN per PNS_ID (baca saja) untuk halaman Riwayat web TEMANKU.
-		// Handler sama dengan grup SIMPEG (simpeg.router.go); tambah/ubah/sync tetap hanya lewat SIMPEG.
+		// RIWAYAT ASN per PNS_ID untuk halaman Riwayat web TEMANKU.
+		// Handler sama dengan grup SIMPEG (simpeg.router.go). Web TEMANKU selalu memakai PNS_ID pegawai yang login.
 		api.GET("/asn/rw-pendidikan/pns/:id", middleware.DualAuthMiddleware(), asn.GetAllRWPendidikanByPNS)
 		api.GET("/asn/rw-golongan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWGolonganByPNS)
 		api.GET("/asn/rw-penghargaan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWPenghargaanByPNS)
@@ -236,6 +236,47 @@ func RegisterTemankuRoutes(r *gin.Engine) {
 		api.GET("/asn/rw-kursus/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWKursusByPNS)
 		api.GET("/asn/rw-diklatpim/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWDiklatPimByPNS)
 		api.GET("/asn/rw-pasangan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWPasanganByPNS)
+
+		// SYNC SIASN riwayat milik sendiri (tahap 1 data, tahap 2 dokumen), sama dengan tombol Sync di SIMPEG.
+		api.PUT("/asn/rw-pendidikan/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWPendidikanByPNS)
+		api.PUT("/asn/rw-golongan/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWGolonganByPNS)
+		api.PUT("/asn/rw-penghargaan/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWPenghargaanByPNS)
+		api.PUT("/asn/rw-hukdis/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWHukdisByPNS)
+		api.PUT("/asn/rw-kinerja/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWKinerjaByPNS)
+		api.PUT("/asn/rw-pak/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWPakByPNS)
+		api.PUT("/asn/rw-cpns/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWCpnsByPNS)
+		api.PUT("/asn/rw-jabatan/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWJabatanByPNS)
+		api.PUT("/asn/rw-kursus/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWKursusByPNS)
+		api.PUT("/asn/rw-diklatpim/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWDiklatPimByPNS)
+		api.PUT("/asn/rw-pasangan/pns/:id/sync", middleware.DualAuthMiddleware(), asn.SyncRWPasanganByPNS)
+		api.PATCH("/asn/rw-pendidikan/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenPendidikan)
+		api.PATCH("/asn/rw-golongan/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenGolongan)
+		api.PATCH("/asn/rw-penghargaan/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenPenghargaan)
+		api.PATCH("/asn/rw-hukdis/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenHukdis)
+		api.PATCH("/asn/rw-kinerja/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenKinerja)
+		api.PATCH("/asn/rw-pak/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenPak)
+		api.PATCH("/asn/rw-cpns/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenCpns)
+		api.PATCH("/asn/rw-jabatan/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenJabatan)
+		api.PATCH("/asn/rw-kursus/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenKursus)
+		api.PATCH("/asn/rw-diklatpim/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenDiklatPim)
+		api.PATCH("/asn/rw-pasangan/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenPasangan)
+
+		// REFERENSI form usulan riwayat
+		api.GET("/asn/ref-pendidikan", middleware.DualAuthMiddleware(), asn.GetRefPendidikan)
+		api.GET("/asn/ref-jurusan", middleware.DualAuthMiddleware(), asn.GetRefJurusan)
+		api.GET("/asn/ref-penghargaan", middleware.DualAuthMiddleware(), asn.GetRefPenghargaan)
+		api.GET("/asn/ref-hukdis", middleware.DualAuthMiddleware(), asn.GetRefHukdis)
+		api.GET("/asn/ref-jabatan", middleware.DualAuthMiddleware(), asn.GetRefJabatan)
+		api.GET("/asn/ref-diklat", middleware.DualAuthMiddleware(), asn.GetRefDiklat)
+		api.GET("/asn/ref-diklatpim", middleware.DualAuthMiddleware(), asn.GetRefDiklatPim)
+
+		// USULAN RIWAYAT oleh pegawai (verifikasi /status tetap hanya di grup SIMPEG).
+		// Web TEMANKU memeriksa kepemilikan usulan (pns_id) sebelum PUT/DELETE.
+		api.POST("/asn/usulan-riwayat", middleware.DualAuthMiddleware(), asn.PostUsulanRiwayat)
+		api.GET("/asn/usulan-riwayat", middleware.DualAuthMiddleware(), asn.GetUsulanRiwayat)
+		api.GET("/asn/usulan-riwayat/:id", middleware.DualAuthMiddleware(), asn.GetUsulanRiwayatByID)
+		api.PUT("/asn/usulan-riwayat/:id", middleware.DualAuthMiddleware(), asn.PutUsulanRiwayat)
+		api.DELETE("/asn/usulan-riwayat/:id", middleware.DualAuthMiddleware(), asn.DeleteUsulanRiwayat)
 
 		// DINAS
 		api.GET("/dinas", middleware.DualAuthMiddleware(), lain.GetDinasAlls)
