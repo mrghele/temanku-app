@@ -385,3 +385,62 @@ function riwayat_baris_hukdis(array $g): array
          ['Pembatalan', rw_sk(rw_s($g, 'no_batal'), rw_s($g, 'tgl_batal'))]],
         [['SK hukuman', 'scan']], rw_s($g, 'tingkat') !== '' ? 'Tingkat ' . rw_s($g, 'tingkat') : '');
 }
+
+/* ---------- Identitas (data utama SIMPEG/SIASN) ---------- */
+
+/** Label kolom data utama (GET /asn/data-utama/{PNS_ID}) per kelompok tampilan. */
+const RIWAYAT_IDENTITAS = [
+    'Data pribadi' => [
+        'nipBaru' => ['NIP', 'bi-person-vcard'], 'nipLama' => ['NIP lama', 'bi-person-vcard'], 'nik' => ['NIK', 'bi-credit-card-2-front'],
+        'tempatLahir' => ['Tempat lahir', 'bi-geo-alt'], 'tglLahir' => ['Tanggal lahir', 'bi-calendar3'],
+        'jenisKelamin' => ['Jenis kelamin', 'bi-gender-ambiguous'], 'agama' => ['Agama', 'bi-moon-stars'],
+        'statusPerkawinan' => ['Status perkawinan', 'bi-heart'],
+    ],
+    'Kontak' => [
+        'noHp' => ['Nomor HP', 'bi-phone'], 'email' => ['Email', 'bi-envelope'], 'emailGov' => ['Email dinas', 'bi-envelope-at'],
+        'alamat' => ['Alamat', 'bi-house'],
+    ],
+    'Kepegawaian' => [
+        'statusPegawai' => ['Status pegawai', 'bi-person-badge'], 'kedudukanPnsNama' => ['Kedudukan', 'bi-patch-check'],
+        'golRuangAkhir' => ['Golongan / ruang', 'bi-arrow-up-circle'], 'jabatanNama' => ['Jabatan', 'bi-briefcase'],
+        'jenisJabatan' => ['Jenis jabatan', 'bi-tags'], 'eselonLevel' => ['Eselon', 'bi-diagram-3'], 'tmtJabatan' => ['TMT jabatan', 'bi-calendar3'],
+        'unorNama' => ['Unit organisasi', 'bi-building'], 'unorIndukNama' => ['Unit organisasi induk', 'bi-buildings'],
+        'tmtCpns' => ['TMT CPNS', 'bi-calendar3'], 'tmtPns' => ['TMT PNS', 'bi-calendar3'], 'masaKerja' => ['Masa kerja', 'bi-hourglass-split'],
+    ],
+    'Pendidikan terakhir' => [
+        'pendidikanTerakhirNama' => ['Pendidikan', 'bi-mortarboard'], 'tkPendidikanTerakhir' => ['Tingkat', 'bi-bar-chart-steps'],
+        'tahunLulus' => ['Tahun lulus', 'bi-calendar-check'],
+    ],
+];
+
+/**
+ * Identitas pegawai yang login: ['nama', 'kelompok' => [judul => [[label, nilai, ikon]]]]; null bila API gagal.
+ * Disimpan di sesi selama RIWAYAT_CACHE_TTL detik.
+ */
+function riwayat_identitas(array $pegawai, bool $segar = false): ?array
+{
+    $cache = $_SESSION['riwayat_identitas'] ?? null;
+    if (!$segar && is_array($cache) && ($cache['pns_id'] ?? '') === $pegawai['pns_id'] && $cache['sampai'] > time()) return $cache['data'];
+    [$kode, $json] = riwayat_api_get(API_TEMANKU, '/asn/data-utama/' . rawurlencode($pegawai['pns_id']));
+    if ($kode < 200 || $kode >= 300 || !is_array($json)) {
+        $GLOBALS['riwayat_api_kode'] = $kode;
+        error_log('TEMANKU riwayat identitas: HTTP ' . $kode);
+        return null;
+    }
+    $d = isset($json['data']) && is_array($json['data']) ? $json['data'] : $json;
+    $nama = trim(implode(' ', array_filter([rw_s($d, 'gelarDepan'), rw_s($d, 'nama')], 'strlen')) . (rw_s($d, 'gelarBelakang') !== '' ? ', ' . rw_s($d, 'gelarBelakang') : ''));
+    $kelompok = [];
+    foreach (RIWAYAT_IDENTITAS as $judul => $kolom) {
+        foreach ($kolom as $k => [$label, $ikon]) {
+            $v = rw_s($d, $k);
+            if ($v === '' || $v === '-' || $v === '0') continue;
+            if (preg_match('/^tgl|^tmt/i', $k)) $v = rw_tgl(preg_match('/^(\d{2})-(\d{2})-(\d{4})$/', $v, $m) ? $m[3] . '-' . $m[2] . '-' . $m[1] : $v);
+            if ($k === 'jenisKelamin') $v = ['M' => 'Laki-laki', 'L' => 'Laki-laki', 'F' => 'Perempuan', 'P' => 'Perempuan'][strtoupper($v)] ?? $v;
+            if ($k === 'golRuangAkhir' && ctype_digit($v) && isset(RIWAYAT_GOLONGAN[(int)$v])) $v = implode(' – ', RIWAYAT_GOLONGAN[(int)$v]);
+            $kelompok[$judul][] = [$label, $v, $ikon];
+        }
+    }
+    $data = ['nama' => $nama !== '' ? $nama : rw_s($d, 'nama'), 'nip' => rw_s($d, 'nipBaru') ?: $pegawai['nip'], 'kelompok' => $kelompok];
+    $_SESSION['riwayat_identitas'] = ['pns_id' => $pegawai['pns_id'], 'sampai' => time() + RIWAYAT_CACHE_TTL, 'data' => $data];
+    return $data;
+}

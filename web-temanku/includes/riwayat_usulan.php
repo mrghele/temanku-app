@@ -23,18 +23,25 @@ const RIWAYAT_JENIS_LABEL = [
     'tugas' => 'Tugas Tambahan', 'pak' => 'Angka Kredit', 'kinerja' => 'Kinerja (SKP)', 'hukdis' => 'Hukuman Disiplin',
 ];
 
-/** Hak role "pegawai" di permissions.php SIMPEG (asn.*). Hak lain hanya lewat $_SESSION['user_permissions']. */
-const RIWAYAT_HAK_PEGAWAI = [
-    'asn.hukdis.view', 'asn.hukdis.sync',
-    'asn.kinerja.view', 'asn.kinerja.sync', 'asn.kinerja.usul',
-    'asn.pak.view', 'asn.pak.sync', 'asn.pak.usul',
-    'asn.cpns.view', 'asn.cpns.sync', 'asn.cpns.usul',
-    'asn.jabatan.view', 'asn.jabatan.sync', 'asn.tugas.view', 'asn.tugas.sync',
-    'asn.kursus.view', 'asn.kursus.sync', 'asn.diklatpim.view', 'asn.diklatpim.sync',
-    'asn.pasangan.view', 'asn.pasangan.sync', 'asn.pasangan.usul',
+/**
+ * Hak usulan pegawai di TEMANKU per jenis (keputusan BKPSDM). Hukuman disiplin hanya baca.
+ * Riwayat itu sendiri tidak berubah sebelum usulan diverifikasi admin SIMPEG.
+ */
+const RIWAYAT_IZIN_TEMANKU = [
+    'pendidikan'  => ['ubah', 'hapus'],
+    'kursus'      => ['tambah', 'ubah', 'hapus'],
+    'diklatpim'   => ['tambah', 'ubah', 'hapus'],
+    'pasangan'    => ['tambah', 'ubah', 'hapus'],
+    'golongan'    => ['ubah'],
+    'penghargaan' => ['tambah', 'ubah', 'hapus'],
+    'cpns'        => ['ubah'],
+    'jabatan'     => ['tambah', 'ubah', 'hapus'],
+    'tugas'       => ['tambah', 'ubah', 'hapus'],
+    'pak'         => ['ubah', 'hapus'],
+    'kinerja'     => ['ubah', 'hapus'],
+    'hukdis'      => [],
 ];
 
-/** Kategori repository dokumen (/upload-dok) per jenis usulan, sama dengan SIMPEG. */
 const RIWAYAT_REPO_KATEGORI = [
     'pendidikan' => 'pendidikan', 'golongan' => 'pangkat', 'penghargaan' => 'penghargaan', 'hukdis' => 'hukdis',
     'kinerja' => 'kinerja', 'pak' => 'kredit', 'cpns' => 'pns', 'jabatan' => 'jabatan', 'tugas' => 'jabatan',
@@ -46,27 +53,15 @@ const RIWAYAT_POLA_REPO    = '#^(pendidikan|pangkat|penghargaan|hukdis|kinerja|k
 const RIWAYAT_POLA_ID      = '/^[A-Za-z0-9-]{1,64}$/';
 const RIWAYAT_STATUS_UBAH  = ['diajukan', 'dikembalikan'];
 
-function riwayat_hak(string $kunci): bool
-{
-    if (in_array($kunci, RIWAYAT_HAK_PEGAWAI, true)) return true;
-    $tambahan = $_SESSION['user_permissions'] ?? [];
-    return is_array($tambahan) && (in_array($kunci, $tambahan, true) || ($tambahan[$kunci] ?? false) === true);
-}
-
-/**
- * Izin per jenis seperti tab SIMPEG: tambah golongan/kinerja/pak memakai hak ".tambah" tersendiri, CPNS hanya ubah,
- * kinerja tidak bisa dihapus. Form tersedia di TEMANKU untuk jenis di RIWAYAT_FORM (jabatan/tugas/hukdis lewat SIMPEG).
- */
+/** Izin per jenis untuk pegawai yang login; sync SIASN riwayat milik sendiri berlaku untuk semua kategori. */
 function riwayat_izin_jenis(string $jenis): array
 {
     $form = isset(riwayat_form_daftar()[$jenis]);
-    $usul = $form && riwayat_hak('asn.' . $jenis . '.usul');
-    $kunciTambah = in_array($jenis, ['golongan', 'kinerja', 'pak'], true) ? 'asn.' . $jenis . '.tambah' : 'asn.' . $jenis . '.usul';
+    $hak = RIWAYAT_IZIN_TEMANKU[$jenis] ?? [];
     return [
-        'tambah' => $form && $jenis !== 'cpns' && riwayat_hak($kunciTambah),
-        'ubah'   => $usul,
-        'hapus'  => $usul && !in_array($jenis, ['kinerja', 'cpns'], true),
-        // Sinkron SIASN riwayat milik sendiri: semua kategori (keputusan TEMANKU), tetap hanya PNS_ID sesi.
+        'tambah' => $form && in_array('tambah', $hak, true),
+        'ubah'   => $form && in_array('ubah', $hak, true),
+        'hapus'  => in_array('hapus', $hak, true),
         'sync'   => true,
     ];
 }
@@ -126,7 +121,7 @@ function riwayat_form_daftar(): array
             ['k' => 'sk_date', 'l' => 'Tanggal SK', 't' => 'date', 'w' => true],
         ], 'dok' => [['sertifikat', 'Sertifikat / SK penghargaan', true]]],
 
-        'kinerja' => ['kunci_ubah' => true, 'field' => [
+        'kinerja' => ['field' => [
             ['k' => 'tahun', 'l' => 'Tahun penilaian', 't' => 'year', 'w' => true, 'min' => 2022],
             ['k' => 'hasil', 'l' => 'Hasil kerja', 't' => 'select', 'w' => true, 'o' => $ekspektasi],
             ['k' => 'perilaku', 'l' => 'Perilaku kerja', 't' => 'select', 'w' => true, 'o' => $ekspektasi],
@@ -196,6 +191,10 @@ function riwayat_form_daftar(): array
             ['k' => 'jenis_kompetensi', 'l' => 'Jenis kompetensi', 't' => 'text', 'max' => 255],
         ], 'dok' => [['sertifikat', 'Sertifikat', true]]],
 
+        'jabatan' => ['field' => riwayat_field_jabatan(false), 'dok' => [['sk', 'SK jabatan', false], ['lantik', 'Dokumen pelantikan', false], ['sk_mutasi', 'SK mutasi', false]],
+            'catatan' => 'SK jabatan atau SK mutasi wajib diunggah untuk riwayat baru.'],
+        'tugas' => ['field' => riwayat_field_jabatan(true), 'dok' => [['sk', 'SK tugas tambahan', true], ['lantik', 'Dokumen pelantikan', false]]],
+
         'pasangan' => ['field' => [
             ['k' => 'nama', 'l' => 'Nama pasangan', 't' => 'text', 'w' => true, 'lebar' => 'penuh', 'max' => 255],
             ['k' => 'pasangan_ke', 'l' => 'Pasangan ke-', 't' => 'int', 'w' => true, 'min' => 1, 'max' => 4],
@@ -219,6 +218,37 @@ function riwayat_form_daftar(): array
     ];
     return $f;
 }
+
+/** Field form jabatan / tugas tambahan (struktur sama dengan DataJabatanUsul API Go). */
+function riwayat_field_jabatan(bool $tugas): array
+{
+    $f = [];
+    if ($tugas) {
+        $f[] = ['k' => 'jenis', 'l' => 'Jenis jabatan', 't' => 'tetap', 'nilai' => '1'];
+        $f[] = ['k' => 'jenis_penugasan', 'l' => 'Jenis penugasan', 't' => 'select', 'w' => true, 'o' => [['TT', 'Tugas tambahan (mis. Kepala Sekolah)'], ['PLT', 'Pelaksana Tugas (Plt.)'], ['PJ', 'Penjabat (Pj.)']]];
+    } else {
+        $f[] = ['k' => 'jenis', 'l' => 'Jenis jabatan', 't' => 'select', 'w' => true, 'o' => [['1', 'Struktural'], ['2', 'Fungsional'], ['4', 'Pelaksana']]];
+    }
+    $f[] = ['k' => 'unor_id', 'l' => 'Unit organisasi', 't' => 'search', 'w' => true, 'ref' => 'unor', 'nama' => 'unor_nama', 'lebar' => 'penuh',
+        'bantu' => $tugas ? 'Jabatan struktural yang ditempati mengikuti unit organisasi.' : 'Ketik minimal 2 huruf. Untuk struktural, nama jabatan mengikuti unit organisasi.'];
+    if (!$tugas) {
+        $f[] = ['k' => 'fungsional_id', 'l' => 'Jabatan fungsional', 't' => 'search', 'w' => true, 'ref' => 'fungsional', 'nama' => 'jabatan_nama', 'lebar' => 'penuh', 'tampil' => ['jenis', '2']];
+        $f[] = ['k' => 'umum_id', 'l' => 'Jabatan pelaksana', 't' => 'search', 'w' => true, 'ref' => 'pelaksana', 'nama' => 'jabatan_nama', 'lebar' => 'penuh', 'tampil' => ['jenis', '4']];
+        $f[] = ['k' => 'jenis_mutasi', 'l' => 'Jenis mutasi', 't' => 'select', 'o' => [['MJ', 'Mutasi jabatan'], ['MU', 'Mutasi unit organisasi']], 'tampil' => ['jenis', ['2', '4']]];
+        $f[] = ['k' => 'tmt_mutasi', 'l' => 'TMT mutasi', 't' => 'date', 'tampil' => ['jenis', ['2', '4']]];
+    }
+    $f[] = ['k' => 'no_sk', 'l' => 'Nomor SK', 't' => 'text', 'w' => true, 'max' => 255];
+    $f[] = ['k' => 'tgl_sk', 'l' => 'Tanggal SK', 't' => 'date', 'w' => true];
+    $f[] = ['k' => 'tmt_jabatan', 'l' => $tugas ? 'TMT tugas' : 'TMT jabatan', 't' => 'date', 'w' => true];
+    $f[] = ['k' => 'tmt_pelantikan', 'l' => 'TMT pelantikan', 't' => 'date'];
+    return $f;
+}
+
+/** Kolom dokumen usulan -> kolom dokumen riwayat (riwayat_baris_*), untuk pratinjau dokumen saat ini di form "ubah". */
+const RIWAYAT_DOK_RIWAYAT = [
+    'golongan' => ['sk' => 'scan', 'pertek' => 'dok_pertek'], 'penghargaan' => ['sertifikat' => 'scan'],
+    'kinerja' => ['skp' => 'scan'], 'hukdis' => ['sk' => 'scan'],
+];
 
 /** Nama kolom riwayat (GET rw-*) yang berbeda dengan kunci data usulan, per jenis. */
 const RIWAYAT_USUL_ALIAS = [
@@ -423,8 +453,17 @@ function riwayat_usul_data(string $jenis, array $dasar, array $isian): array
     $potong = static function (string $s, int $max): string {
         return function_exists('mb_substr') ? mb_substr($s, 0, $max) : substr($s, 0, $max);
     };
+    // Field bersyarat (mis. jabatan fungsional hanya untuk jenis 2) dinilai dari isian yang dikirim.
+    $aktif = static function (array $f) use ($isian, $dasar): bool {
+        if (empty($f['tampil'])) return true;
+        [$dep, $nilai] = $f['tampil'];
+        $v = (string)($isian[$dep] ?? ($dasar[$dep] ?? ''));
+        return in_array($v, (array)$nilai, true);
+    };
     foreach ($form['field'] as $f) {
         $k = $f['k'];
+        if ($f['t'] === 'tetap') { $data[$k] = (string)$f['nilai']; continue; }
+        if (!$aktif($f)) continue;
         if (!array_key_exists($k, $isian)) continue;   // tidak dikirim: nilai dasar dipertahankan
         $v = $isian[$k];
         $v = is_string($v) ? trim($v) : '';

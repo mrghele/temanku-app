@@ -42,22 +42,8 @@ function rw_batas(string $kunci, int $maks, int $detik): bool
     return true;
 }
 
-$pegawai = riwayat_pegawai();
-if (!$pegawai) rw_keluar(['success' => false, 'message' => 'Data kepegawaian Anda belum ditemukan di SIMPEG.'], 404);
-$kategoriTampil = riwayat_kategori_daftar($pegawai);
-$aksi = rw_input('aksi');
-
-/** Kategori halaman untuk jenis usulan; hanya kategori yang tampil untuk jenis ASN pegawai. */
-function rw_kategori_jenis(string $jenis, array $kategoriTampil): ?string
-{
-    foreach (RIWAYAT_KATEGORI_JENIS as $kat => $daftar) {
-        if (in_array($jenis, $daftar, true) && isset($kategoriTampil[$kat])) return $kat;
-    }
-    return null;
-}
-
 /* ---------- status koneksi ---------- */
-if ($aksi === 'status') {
+if (rw_input('aksi') === 'status') {
     $c = $_SESSION['riwayat_status'] ?? null;
     if (is_array($c) && ($c['sampai'] ?? 0) > time() && rw_input('segar') !== '1') rw_keluar(['success' => true] + $c['data']);
     $mulai = microtime(true);
@@ -80,13 +66,36 @@ if ($aksi === 'status') {
     rw_keluar(['success' => true] + $data);
 }
 
+$pegawai = riwayat_pegawai();
+if (!$pegawai) rw_keluar(['success' => false, 'message' => 'Data kepegawaian Anda belum ditemukan di SIMPEG.'], 404);
+$kategoriTampil = riwayat_kategori_daftar($pegawai);
+$aksi = rw_input('aksi');
+
+/** Kategori halaman untuk jenis usulan; hanya kategori yang tampil untuk jenis ASN pegawai. */
+function rw_kategori_jenis(string $jenis, array $kategoriTampil): ?string
+{
+    foreach (RIWAYAT_KATEGORI_JENIS as $kat => $daftar) {
+        if (in_array($jenis, $daftar, true) && isset($kategoriTampil[$kat])) return $kat;
+    }
+    return null;
+}
+
 /* ---------- referensi form ---------- */
 if ($aksi === 'ref') {
     $nama = rw_input('nama');
     $sumber = ['pendidikan' => '/asn/ref-pendidikan', 'penghargaan' => '/asn/ref-penghargaan', 'diklat' => '/asn/ref-diklat',
-        'diklatpim' => '/asn/ref-diklatpim', 'agama' => '/agama', 'jurusan' => '/asn/ref-jurusan'][$nama] ?? null;
+        'diklatpim' => '/asn/ref-diklatpim', 'agama' => '/agama', 'jurusan' => '/asn/ref-jurusan',
+        'unor' => '/asn/ref-jabatan', 'fungsional' => '/asn/ref-jabatan', 'pelaksana' => '/asn/ref-jabatan', 'struktural' => '/asn/ref-jabatan'][$nama] ?? null;
     if ($sumber === null) rw_keluar(['success' => false, 'message' => 'Referensi tidak dikenal'], 400);
-    if ($nama === 'jurusan') {
+    if ($nama === 'struktural') {
+        $unor = rw_input('unor');
+        if (!preg_match(RIWAYAT_POLA_ID, $unor)) rw_keluar(['success' => true, 'data' => []]);
+        $sumber .= '?' . http_build_query(['jenis' => 'struktural', 'unor' => $unor]);
+    } elseif (in_array($nama, ['unor', 'fungsional', 'pelaksana'], true)) {
+        $q = rw_input('q');
+        if ((function_exists('mb_strlen') ? mb_strlen($q) : strlen($q)) < 2) rw_keluar(['success' => true, 'data' => []]);
+        $sumber .= '?' . http_build_query(['jenis' => $nama, 'q' => substr($q, 0, 60)]);
+    } elseif ($nama === 'jurusan') {
         $q = rw_input('q');
         if ((function_exists('mb_strlen') ? mb_strlen($q) : strlen($q)) < 2) rw_keluar(['success' => true, 'data' => []]);
         $sumber .= '?' . http_build_query(['q' => substr($q, 0, 60), 'tingkat' => preg_replace('/\D/', '', rw_input('tingkat'))]);
@@ -104,7 +113,7 @@ if ($aksi === 'ref') {
         foreach (['nama', 'name', 'harga_nama', 'agama', 'nmpendidikan'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $lbl = trim((string)$r[$k]); break; } }
         if ($id !== '' && $lbl !== '') $out[] = ['id' => $id, 'nama' => $lbl];
     }
-    if ($nama !== 'jurusan') $_SESSION['riwayat_ref'][$nama] = $out;
+    if (!in_array($nama, ['jurusan', 'unor', 'fungsional', 'pelaksana', 'struktural'], true)) $_SESSION['riwayat_ref'][$nama] = $out;
     rw_keluar(['success' => true, 'data' => $out]);
 }
 

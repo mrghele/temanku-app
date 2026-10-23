@@ -127,15 +127,25 @@ func notifPegawaiList(c *gin.Context) {
 	if limit < 1 || limit > 100 {
 		limit = 20
 	}
+	// offset untuk halaman (page) di web; total = jumlah semua notifikasi 60 hari terakhir.
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if offset < 0 {
+		offset = 0
+	}
 	list := notifPegawai(nip, strings.TrimSpace(pnsID))
 	baca := notifTerakhirBaca(nip)
 	for _, n := range list {
 		n["dibaca"] = baca != "" && n["created_at"].(string) <= baca
 	}
+	total := len(list)
+	if offset > total {
+		offset = total
+	}
+	list = list[offset:]
 	if len(list) > limit {
 		list = list[:limit]
 	}
-	c.JSON(http.StatusOK, gin.H{"data": list})
+	c.JSON(http.StatusOK, gin.H{"data": list, "total": total, "offset": offset, "limit": limit})
 }
 
 func notifPegawaiBelum(c *gin.Context) {
