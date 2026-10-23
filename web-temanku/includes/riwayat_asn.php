@@ -1,0 +1,341 @@
+<?php
+declare(strict_types=1);
+
+/*
+ * Riwayat ASN lengkap untuk TEMANKU, mengikuti tab riwayat SIMPEG (asn/detail).
+ * Sumber data sama dengan SIMPEG: endpoint /asn/rw-* API Go.
+ * Pegawai hanya melihat riwayat miliknya sendiri: PNS_ID dicari dari NIP sesi, tidak pernah dari input.
+ */
+
+const RIWAYAT_CACHE_TTL = 300;
+const RIWAYAT_DOK_POLA  = '#^[a-z_]+/(?:riwayat|usul)/[A-Za-z0-9._-]+\.pdf$#';
+
+/** PNS_ID & jenis ASN pegawai yang login: ['nip', 'pns_id', 'jenis' => pns|pppk|pppkpw, 'cpns' => bool]. */
+function riwayat_pegawai(): ?array
+{
+    $nip = current_nip();
+    $info = $_SESSION['riwayat_pegawai'] ?? null;
+    if (is_array($info) && ($info['nip'] ?? '') === $nip) return $info;
+    if (!preg_match('/^\d{8,20}$/', $nip)) return null;
+
+    $r = temanku_get('/asn/data-utama/nip/' . rawurlencode($nip));
+    if (isset($r['data']) && is_array($r['data']) && !is_list_array($r['data'])) $r = $r['data'];
+    $pnsId = trim((string)($r['pns_id'] ?? ''));
+    if (!preg_match('/^[A-Za-z0-9-]{1,64}$/', $pnsId)) return null;
+
+    $status = strtolower(trim((string)($r['status_pegawai'] ?? '')));
+    $info = [
+        'nip'    => $nip,
+        'pns_id' => $pnsId,
+        'jenis'  => riwayat_jenis_asn($status, $nip),
+        'cpns'   => in_array($status, ['c', 'cpns'], true),
+    ];
+    $_SESSION['riwayat_pegawai'] = $info;
+    return $info;
+}
+
+/** Kelompok ASN seperti asn_status_group() SIMPEG; NIP PPPK berkode "21" pada digit 13-14. */
+function riwayat_jenis_asn(string $status, string $nip): string
+{
+    if (in_array($status, ['3', 'pppkpw', 'pppk-pw', 'pppk_pw', 'pppk pw'], true) || strpos($status, 'paruh') !== false) return 'pppkpw';
+    if (in_array($status, ['2', 'k'], true) || strpos($status, 'pppk') === 0) return 'pppk';
+    if ($status === '' && strlen($nip) === 18 && substr($nip, 12, 2) === '21') return 'pppk';
+    return 'pns';
+}
+
+/**
+ * Kategori riwayat per jenis ASN, urutan & aturan sama dengan tab SIMPEG:
+ * PNS semua tab; PPPK tanpa pangkat/CPNS/jabatan/tugas/angka kredit; PPPK paruh waktu hanya kinerja & disiplin;
+ * penghargaan tidak untuk CPNS & PPPK paruh waktu.
+ */
+function riwayat_kategori_daftar(array $pegawai): array
+{
+    $pns = $pegawai['jenis'] === 'pns';
+    $pw  = $pegawai['jenis'] === 'pppkpw';
+    $daftar = [
+        'pendidikan'  => ['Riwayat Pendidikan', 'bi-mortarboard-fill', 'biru', !$pw],
+        'diklat'      => ['Diklat & Kursus', 'bi-award-fill', 'kuning', !$pw],
+        'keluarga'    => ['Data Keluarga', 'bi-people-fill', 'abu', !$pw],
+        'pangkat'     => ['Riwayat Pangkat', 'bi-arrow-up-circle-fill', 'hijau', $pns],
+        'penghargaan' => ['Penghargaan', 'bi-trophy-fill', 'kuning', !$pegawai['cpns'] && !$pw],
+        'cpns'        => ['CPNS/PNS', 'bi-shield-check', 'biru', $pns],
+        'jabatan'     => ['Riwayat Jabatan', 'bi-briefcase-fill', 'tosca', $pns],
+        'tugas'       => ['Tugas Tambahan', 'bi-person-workspace', 'tosca', $pns],
+        'kredit'      => ['Angka Kredit', 'bi-graph-up-arrow', 'hijau', $pns],
+        'kinerja'     => ['Kinerja (SKP)', 'bi-bar-chart-fill', 'biru', true],
+        'disiplin'    => ['Hukuman Disiplin', 'bi-shield-exclamation', 'merah', true],
+    ];
+    return array_filter($daftar, static function (array $k): bool { return $k[3]; });
+}
+
+/** Ambil baris mentah satu endpoint rw-*; null bila API gagal (beda dengan [] = memang belum ada data). */
+function riwayat_api(string $jenis, string $pnsId): ?array
+{
+    $r = temanku_get('/asn/rw-' . $jenis . '/pns/' . rawurlencode($pnsId));
+    if ($r === null) return null;
+    return array_values(array_filter(api_rows($r), 'is_array'));
+}
+
+/**
+ * Riwayat satu kategori dalam bentuk seragam untuk tampilan:
+ * ['id_rw', 'judul', 'sub', 'label', 'waktu', 'urut', 'info' => [[label, nilai]], 'dok' => [[label, kolom]], '_raw'].
+ * Hasil disimpan di sesi selama RIWAYAT_CACHE_TTL detik. null bila API gagal.
+ */
+function riwayat_data(array $pegawai, string $kategori, bool $segar = false): ?array
+{
+    $kunci = $pegawai['pns_id'] . ':' . $kategori;
+    $cache = $_SESSION['riwayat_cache'][$kunci] ?? null;
+    if (!$segar && is_array($cache) && $cache['sampai'] > time()) return $cache['data'];
+
+    $rows = riwayat_muat($pegawai['pns_id'], $kategori);
+    if ($rows === null) return null;
+    usort($rows, static function (array $a, array $b): int { return strcmp($b['urut'], $a['urut']); });
+    $_SESSION['riwayat_cache'][$kunci] = ['sampai' => time() + RIWAYAT_CACHE_TTL, 'data' => $rows];
+    return $rows;
+}
+
+function riwayat_muat(string $pnsId, string $kategori): ?array
+{
+    switch ($kategori) {
+        case 'pendidikan':
+            $src = riwayat_api('pendidikan', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_pendidikan', $src);
+        case 'diklat':
+            $pim = riwayat_api('diklatpim', $pnsId);
+            $krs = riwayat_api('kursus', $pnsId);
+            if ($pim === null && $krs === null) return null;
+            return array_merge(array_map('riwayat_baris_diklatpim', $pim ?? []), array_map('riwayat_baris_kursus', $krs ?? []));
+        case 'keluarga':
+            $src = riwayat_api('pasangan', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_pasangan', $src);
+        case 'pangkat':
+            $src = riwayat_api('golongan', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_golongan', $src);
+        case 'penghargaan':
+            $src = riwayat_api('penghargaan', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_penghargaan', $src);
+        case 'cpns':
+            $src = riwayat_api('cpns', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_cpns', $src);
+        case 'jabatan':
+        case 'tugas':
+            $src = riwayat_api('jabatan', $pnsId);
+            if ($src === null) return null;
+            // Seperti SIMPEG: jabatan = penugasan definitif (D/kosong), tugas tambahan = selain definitif (TT/PLT/PJ).
+            $src = array_filter($src, static function (array $g) use ($kategori): bool {
+                $pg = strtoupper(trim((string)($g['jenis_penugasan'] ?? '')));
+                return ($kategori === 'tugas') !== ($pg === '' || $pg === 'D');
+            });
+            return array_map('riwayat_baris_jabatan', array_values($src));
+        case 'kredit':
+            $src = riwayat_api('pak', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_pak', $src);
+        case 'kinerja':
+            $src = riwayat_api('kinerja', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_kinerja', $src);
+        case 'disiplin':
+            $src = riwayat_api('hukdis', $pnsId);
+            return $src === null ? null : array_map('riwayat_baris_hukdis', $src);
+    }
+    return null;
+}
+
+/* ---------- Pembentuk baris per kategori ---------- */
+
+function rw_s(array $g, string $k): string
+{
+    return trim((string)($g[$k] ?? ''));
+}
+
+/** Tanggal ISO (YYYY-MM-DD...) -> "5 Jan 2024"; teks lain dikembalikan apa adanya. */
+function rw_tgl(string $v): string
+{
+    if ($v === '' || strpos($v, '0000-00-00') === 0) return '';
+    return preg_match('/^\d{4}-\d{2}-\d{2}/', $v) ? tanggal_id(substr($v, 0, 10)) : $v;
+}
+
+/** "No. SK, tgl" tanpa koma menggantung. */
+function rw_sk(string $no, string $tgl): string
+{
+    return implode(', ', array_filter([$no, rw_tgl($tgl)], 'strlen'));
+}
+
+function rw_baris(array $g, string $judul, string $sub, string $waktu, string $urut, array $info, array $dok, string $label = ''): array
+{
+    // Dokumen hanya ditautkan bila path berkas repository valid (berkas arsip lama belum bisa diunduh).
+    $berkas = [];
+    foreach ($dok as $i => [, $kolom]) {
+        if (preg_match(RIWAYAT_DOK_POLA, rw_s($g, $kolom))) $berkas[$kolom] = rw_s($g, $kolom);
+        else unset($dok[$i]);
+    }
+    return [
+        'id_rw' => rw_s($g, 'id_rw'),
+        'judul' => $judul !== '' ? $judul : '-',
+        'sub'   => $sub,
+        'label' => $label,
+        'waktu' => $waktu,
+        'urut'  => $urut,
+        // Baris info kosong tidak ditampilkan.
+        'info'  => array_values(array_filter($info, static function (array $i): bool { return trim((string)$i[1]) !== ''; })),
+        'dok'   => array_values($dok),
+        // Path berkas hanya disimpan di sesi (server) untuk riwayat_dok.php, tidak pernah dikirim ke browser.
+        'berkas' => $berkas,
+    ];
+}
+
+function riwayat_baris_pendidikan(array $g): array
+{
+    $tgl = rw_s($g, 'tgl_lulus');
+    return rw_baris($g,
+        implode(' – ', array_filter([rw_s($g, 'tk_pendidikan_nama'), rw_s($g, 'jurusan_nama')], 'strlen')),
+        implode(', ', array_filter([rw_s($g, 'nama_sekolah'), rw_s($g, 'kota')], 'strlen')),
+        $tgl !== '' ? rw_tgl($tgl) : rw_s($g, 'tahun_lulus'),
+        $tgl !== '' ? $tgl : rw_s($g, 'tahun_lulus'),
+        [['No. Ijazah', rw_s($g, 'no_ijazah')], ['Gelar depan', rw_s($g, 'gelar_depan')],
+         ['Gelar belakang', rw_s($g, 'gelar_belakang')], ['Pimpinan', rw_s($g, 'pimpinan')]],
+        [['Ijazah', 'ijazah'], ['Transkrip', 'transkrip']],
+        rw_s($g, 'pertama') === '1' ? 'Pendidikan pertama' : '');
+}
+
+function riwayat_baris_diklatpim(array $g): array
+{
+    $mulai = rw_s($g, 'tgl_mulai');
+    return rw_baris($g, rw_s($g, 'latihan_nama'), rw_s($g, 'penyelenggara'),
+        $mulai !== '' ? rw_tgl($mulai) : rw_s($g, 'tahun'), $mulai !== '' ? $mulai : rw_s($g, 'tahun'),
+        [['Pelaksanaan', implode(' s.d. ', array_filter([rw_tgl($mulai), rw_tgl(rw_s($g, 'tgl_selesai'))], 'strlen'))],
+         ['Jumlah jam', (int)($g['jam'] ?? 0) > 0 ? (int)$g['jam'] . ' JP' : ''],
+         ['No. Sertifikat', rw_s($g, 'nomor')], ['Kompetensi', rw_s($g, 'jenis_kompetensi')]],
+        [['Sertifikat', 'sertifikat']], 'Diklat Struktural');
+}
+
+function riwayat_baris_kursus(array $g): array
+{
+    $mulai = rw_s($g, 'tgl_mulai');
+    return rw_baris($g, rw_s($g, 'nama'), rw_s($g, 'penyelenggara'),
+        $mulai !== '' ? rw_tgl($mulai) : rw_s($g, 'tahun'), $mulai !== '' ? $mulai : rw_s($g, 'tahun'),
+        [['Pelaksanaan', implode(' s.d. ', array_filter([rw_tgl($mulai), rw_tgl(rw_s($g, 'tgl_selesai'))], 'strlen'))],
+         ['Jumlah jam', (int)($g['jam'] ?? 0) > 0 ? (int)$g['jam'] . ' JP' : ''],
+         ['No. Sertifikat', rw_s($g, 'no_sertifikat')], ['Lokasi', rw_s($g, 'lokasi')]],
+        [['Sertifikat', 'sertifikat']], rw_s($g, 'jenis_diklat_nama') ?: rw_s($g, 'jenis_kursus_nama'));
+}
+
+function riwayat_baris_pasangan(array $g): array
+{
+    $status = ['1' => 'Menikah', '2' => 'Cerai', '3' => 'Meninggal'][rw_s($g, 'status_pernikahan')] ?? '';
+    $nama = trim(implode(' ', array_filter([rw_s($g, 'gelar_depan'), rw_s($g, 'nama')], 'strlen'))
+        . (rw_s($g, 'gelar_belakang') !== '' ? ', ' . rw_s($g, 'gelar_belakang') : ''));
+    $nikah = rw_s($g, 'tgl_akta_menikah');
+    $ke = (int)($g['pasangan_ke'] ?? 0);
+    return rw_baris($g, $nama, implode(' · ', array_filter([$ke > 0 ? 'Pasangan ke-' . $ke : 'Pasangan', $status], 'strlen')),
+        rw_tgl($nikah), $nikah,
+        [['Tempat, tgl lahir', implode(', ', array_filter([rw_s($g, 'tempat_lahir'), rw_tgl(rw_s($g, 'tgl_lahir'))], 'strlen'))],
+         ['Akta nikah', rw_sk(rw_s($g, 'no_akta_menikah'), $nikah)],
+         ['Akta cerai', rw_sk(rw_s($g, 'no_akta_cerai'), rw_s($g, 'tgl_cerai'))],
+         ['Akta kematian', rw_sk(rw_s($g, 'no_akta_meninggal'), rw_s($g, 'tgl_meninggal'))],
+         ['Pekerjaan', (int)($g['is_pns'] ?? 0) === 1 ? 'PNS' : '']],
+        [['Buku/akta nikah', 'akta']]);
+}
+
+const RIWAYAT_GOLONGAN = [
+    11 => ['I/a', 'Juru Muda'], 12 => ['I/b', 'Juru Muda Tingkat I'], 13 => ['I/c', 'Juru'], 14 => ['I/d', 'Juru Tingkat I'],
+    21 => ['II/a', 'Pengatur Muda'], 22 => ['II/b', 'Pengatur Muda Tingkat I'], 23 => ['II/c', 'Pengatur'], 24 => ['II/d', 'Pengatur Tingkat I'],
+    31 => ['III/a', 'Penata Muda'], 32 => ['III/b', 'Penata Muda Tingkat I'], 33 => ['III/c', 'Penata'], 34 => ['III/d', 'Penata Tingkat I'],
+    41 => ['IV/a', 'Pembina'], 42 => ['IV/b', 'Pembina Tingkat I'], 43 => ['IV/c', 'Pembina Utama Muda'], 44 => ['IV/d', 'Pembina Utama Madya'],
+    45 => ['IV/e', 'Pembina Utama'],
+];
+const RIWAYAT_JENIS_KP = [
+    '101' => 'Reguler', '201' => 'Pilihan (Jabatan Struktural)', '202' => 'Pilihan (Jabatan Fungsional Tertentu)',
+    '203' => 'Pilihan (Penyesuaian Ijazah)', '211' => 'Gol. dari Pengadaan CPNS/PNS',
+];
+
+function riwayat_baris_golongan(array $g): array
+{
+    $kode = (int)($g['id_gol'] ?? 0);
+    [$gol, $pangkat] = RIWAYAT_GOLONGAN[$kode] ?? [$kode > 0 ? (string)$kode : '', ''];
+    $jenis = rw_s($g, 'jenis');
+    $tmt = rw_s($g, 'tmt_tgl');
+    $gaji = rw_s($g, 'gaji');
+    return rw_baris($g, implode(' – ', array_filter([$gol, $pangkat], 'strlen')), RIWAYAT_JENIS_KP[$jenis] ?? $jenis,
+        rw_tgl($tmt), $tmt,
+        [['TMT', rw_tgl($tmt)], ['No. & tgl SK', rw_sk(rw_s($g, 'no_sk'), rw_s($g, 'tgl_sk'))],
+         ['Masa kerja', (int)($g['tahun'] ?? 0) . ' tahun ' . (int)($g['bulan'] ?? 0) . ' bulan'],
+         ['Gaji pokok', ctype_digit($gaji) && (int)$gaji > 0 ? rupiah($gaji) : ''],
+         ['Pertek BKN', rw_sk(rw_s($g, 'nopertek'), rw_s($g, 'tglpertek'))]],
+        [['SK pangkat', 'scan'], ['Pertek', 'dok_pertek']]);
+}
+
+function riwayat_baris_penghargaan(array $g): array
+{
+    $tgl = rw_s($g, 'tgl_sk');
+    $tahun = (int)($g['tahun'] ?? 0);
+    return rw_baris($g, rw_s($g, 'jenis_nama') ?: rw_s($g, 'jenis'), rw_s($g, 'kelompok'),
+        $tgl !== '' ? rw_tgl($tgl) : ($tahun > 0 ? (string)$tahun : ''), $tgl !== '' ? $tgl : (string)$tahun,
+        [['No. & tgl SK', rw_sk(rw_s($g, 'no_sk'), $tgl)], ['Tahun', $tahun > 0 ? (string)$tahun : '']],
+        [['SK penghargaan', 'scan']]);
+}
+
+function riwayat_baris_cpns(array $g): array
+{
+    $tmt = rw_s($g, 'tmt_pns') ?: rw_s($g, 'tmt_cpns');
+    return rw_baris($g, 'Status ' . (rw_s($g, 'status') ?: 'CPNS/PNS'), rw_s($g, 'jabatan_angkat'),
+        rw_tgl($tmt), $tmt,
+        [['TMT CPNS', rw_tgl(rw_s($g, 'tmt_cpns'))], ['SK CPNS', rw_sk(rw_s($g, 'no_sk_cpns'), rw_s($g, 'tgl_sk_cpns'))],
+         ['TMT PNS', rw_tgl(rw_s($g, 'tmt_pns'))], ['SK PNS', rw_sk(rw_s($g, 'no_sk_pns'), rw_s($g, 'tgl_sk_pns'))],
+         ['SPMT', rw_sk(rw_s($g, 'no_spmt'), rw_s($g, 'tgl_spmt'))], ['TMT tugas', rw_tgl(rw_s($g, 'tmt_tugas'))],
+         ['STTPL', rw_sk(rw_s($g, 'no_sttpl'), rw_s($g, 'tgl_sttpl'))], ['Karpeg', rw_s($g, 'karpeg')]],
+        [['SK CPNS', 'sk_cpns'], ['SK PNS', 'sk_pns'], ['SPMT', 'spmt']]);
+}
+
+function riwayat_baris_jabatan(array $g): array
+{
+    $pg = strtoupper(rw_s($g, 'jenis_penugasan'));
+    [$penugasan, $sebutan] = ['TT' => ['Tugas Tambahan', ''], 'PLT' => ['Pelaksana Tugas', 'Plt. '], 'PJ' => ['Penjabat', 'Pj. ']][$pg]
+        ?? [$pg === '' || $pg === 'D' ? '' : $pg, ''];
+    $tmt = rw_s($g, 'tmt_jabatan');
+    return rw_baris($g, $sebutan . rw_s($g, 'jabatan_nama'), rw_s($g, 'unor_nama'), rw_tgl($tmt), $tmt,
+        [['Jenis jabatan', ['1' => 'Struktural', '2' => 'Fungsional', '4' => 'Pelaksana'][rw_s($g, 'jenis')] ?? ''],
+         ['No. & tgl SK', rw_sk(rw_s($g, 'no_sk'), rw_s($g, 'tgl_sk'))],
+         ['TMT pelantikan', rw_tgl(rw_s($g, 'tmt_pelantikan'))],
+         ['Mutasi', ['MJ' => 'Mutasi Jabatan', 'MU' => 'Mutasi Unor'][rw_s($g, 'jenis_mutasi')] ?? ''],
+         ['TMT mutasi', rw_tgl(rw_s($g, 'tmt_mutasi'))]],
+        [['SK jabatan', 'sk'], ['Pelantikan', 'lantik'], ['SK mutasi', 'sk_mutasi']], $penugasan);
+}
+
+function riwayat_baris_pak(array $g): array
+{
+    $angka = static function ($v): string {
+        return is_numeric($v) ? rtrim(rtrim(number_format((float)$v, 3, ',', '.'), '0'), ',') : '';
+    };
+    $periode = static function ($bln, $thn): string {
+        return (int)$thn > 0 ? ((int)$bln > 0 ? sprintf('%02d/', (int)$bln) : '') . (int)$thn : '';
+    };
+    $tgl = rw_s($g, 'tgl_sk');
+    $label = (int)($g['pertama'] ?? 0) === 1 ? 'PAK pertama' : ((int)($g['integrasi'] ?? 0) === 1 ? 'Integrasi' : ((int)($g['konversi'] ?? 0) === 1 ? 'Konversi' : ''));
+    return rw_baris($g, 'Total angka kredit ' . ($angka($g['total'] ?? null) ?: '-'),
+        'Periode ' . (implode(' s.d. ', array_filter([$periode($g['bln_mulai'] ?? 0, $g['thn_mulai'] ?? 0), $periode($g['bln_selesai'] ?? 0, $g['thn_selesai'] ?? 0)], 'strlen')) ?: '-'),
+        rw_tgl($tgl), $tgl,
+        [['No. & tgl SK', rw_sk(rw_s($g, 'no_sk'), $tgl)], ['Unsur utama', $angka($g['utama'] ?? null)], ['Unsur penunjang', $angka($g['penunjang'] ?? null)]],
+        [['Dokumen PAK', 'dok_pak'], ['SK PAK', 'sk_pak']], $label);
+}
+
+function riwayat_baris_kinerja(array $g): array
+{
+    $tahun = (int)($g['tahun'] ?? 0);
+    return rw_baris($g, 'Sasaran Kinerja Pegawai (SKP)', rw_s($g, 'kuadran_nama') !== '' ? 'Predikat: ' . rw_s($g, 'kuadran_nama') : '',
+        $tahun > 0 ? (string)$tahun : '', (string)$tahun,
+        [['Hasil kerja', rw_s($g, 'hasil_nama')], ['Perilaku kerja', rw_s($g, 'perilaku_nama')],
+         ['Pejabat penilai', implode(' · ', array_filter([rw_s($g, 'penilai_nama'), rw_s($g, 'penilai_jabatan')], 'strlen'))]],
+        [['Dokumen SKP', 'scan']]);
+}
+
+function riwayat_baris_hukdis(array $g): array
+{
+    $tmt = rw_s($g, 'tmt');
+    $masa = trim(((int)($g['masa_tahun'] ?? 0) > 0 ? (int)$g['masa_tahun'] . ' tahun ' : '') . ((int)($g['masa_bulan'] ?? 0) > 0 ? (int)$g['masa_bulan'] . ' bulan' : ''));
+    return rw_baris($g, rw_s($g, 'tindakan_nama') ?: rw_s($g, 'tindakan'), rw_s($g, 'alasan_nama') ?: rw_s($g, 'alasan'),
+        rw_tgl($tmt), $tmt,
+        [['No. & tgl SK', rw_sk(rw_s($g, 'no_sk'), rw_s($g, 'tgl_sk'))], ['Masa hukuman', $masa],
+         ['Berakhir', rw_tgl(rw_s($g, 'akhir'))], ['Peraturan', rw_s($g, 'pp')], ['Keterangan', rw_s($g, 'keterangan')],
+         ['Pembatalan', rw_sk(rw_s($g, 'no_batal'), rw_s($g, 'tgl_batal'))]],
+        [['SK hukuman', 'scan']], rw_s($g, 'tingkat') !== '' ? 'Tingkat ' . rw_s($g, 'tingkat') : '');
+}

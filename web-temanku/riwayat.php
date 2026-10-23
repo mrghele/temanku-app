@@ -2,23 +2,20 @@
 declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/includes/repository.php';
+require __DIR__ . '/includes/riwayat_asn.php';
 
 $page      = 'riwayat';
 $pageTitle = 'Riwayat ASN';
 require __DIR__ . '/includes/header.php';
 
-$pid      = (int) $u['id'];
-$ringkas  = riwayat_ringkas($pid);
-$aktif    = in_array($_GET['kategori'] ?? '', ['jabatan','pangkat','pendidikan','diklat','keluarga'], true) ? $_GET['kategori'] : null;
-$detail   = $aktif ? riwayat_kategori($pid, $aktif) : [];
-
-$meta = [
-    'jabatan'    => ['Riwayat Jabatan', 'bi-briefcase-fill', 'tosca'],
-    'pangkat'    => ['Riwayat Pangkat', 'bi-arrow-up-circle-fill', 'hijau'],
-    'pendidikan' => ['Riwayat Pendidikan', 'bi-mortarboard-fill', 'biru'],
-    'diklat'     => ['Diklat & Sertifikasi', 'bi-award-fill', 'kuning'],
-    'keluarga'   => ['Data Keluarga', 'bi-people-fill', 'abu'],
-];
+// Kategori & data mengikuti tab riwayat SIMPEG untuk jenis ASN pegawai (PNS / PPPK / PPPK paruh waktu).
+$pegawai  = riwayat_pegawai();
+$meta     = $pegawai ? riwayat_kategori_daftar($pegawai) : [];
+$minta    = is_string($_GET['kategori'] ?? null) ? $_GET['kategori'] : '';
+$aktif    = isset($meta[$minta]) ? $minta : null;
+$segar    = ($_GET['segar'] ?? '') === '1';
+$data     = [];
+foreach ($meta as $key => $_) $data[$key] = riwayat_data($pegawai, $key, $segar);
 ?>
 <?php require __DIR__ . '/includes/mobile_top.php'; ?>
 <h1 class="history-page__heading" style="margin-block:0;font-size:clamp(21px,2vw,27px);font-weight:800"><span class="history-page__desktop-title">Riwayat ASN</span><span class="history-page__mobile-title">Data Riwayat ASN</span></h1>
@@ -76,40 +73,79 @@ $meta = [
 </style>
 <?php endif; ?>
 
+<?php if (!$pegawai): ?>
+<section class="card" style="margin-top:14px">
+  <p style="margin:0;font-size:13px;color:var(--muted-2)">Data kepegawaian untuk NIP <?= e(current_nip()) ?> belum ditemukan di SIMPEG. Silakan hubungi admin OPD atau BKPSDM.</p>
+</section>
+<?php endif; ?>
+
 <div class="grid grid--tiles">
   <?php foreach ($meta as $key => [$label, $icon, $warna]):
-      $r = $ringkas[$key] ?? null; ?>
+      $r = $data[$key]; ?>
     <a class="tile" href="<?= url('riwayat.php?kategori=' . $key) ?>" style="<?= $aktif === $key ? 'border-color:var(--rose)' : '' ?>">
       <span class="tile__ico ico--<?= $warna ?>"><i class="bi <?= $icon ?>"></i></span>
       <span class="tile__txt">
         <strong><?= e($label) ?></strong>
-        <small><?= $r && $r['terakhir'] ? 'Terakhir: ' . e(tanggal_id($r['terakhir'])) : 'Belum ada data' ?></small>
+        <small><?= $r === null ? 'Data belum dapat dimuat' : ($r && $r[0]['waktu'] !== '' ? 'Terakhir: ' . e($r[0]['waktu']) : ($r ? 'Lihat rincian' : 'Belum ada data')) ?></small>
       </span>
-      <span class="tile__num"><?= (int) ($r['jumlah'] ?? 0) ?></span>
+      <span class="tile__num"><?= $r === null ? '!' : count($r) ?></span>
       <i class="bi bi-chevron-right history-page__arrow" aria-hidden="true"></i>
     </a>
   <?php endforeach; ?>
 </div>
 
-<?php if ($aktif): ?>
+<?php if ($aktif): $detail = $data[$aktif]; ?>
+<style>
+.riwayat-row{display:block}
+.riwayat-row__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
+.riwayat-row__head .mono{margin-left:auto;white-space:nowrap}
+.riwayat-row__sub{display:block;margin-top:2px;color:var(--muted)}
+.riwayat-row__info{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 16px;margin:8px 0 0;font-size:12.5px}
+.riwayat-row__info div{min-width:0}
+.riwayat-row__info dt{color:var(--muted-2)}
+.riwayat-row__info dd{margin:0;overflow-wrap:anywhere}
+.riwayat-row__dok{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.riwayat-row__dok a{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;padding:4px 10px;border:1px solid rgba(15,23,42,.14);border-radius:99px;text-decoration:none}
+.riwayat-catatan{margin:10px 0 0;font-size:12px;color:var(--muted-2)}
+</style>
 <section class="card" style="margin-top:14px">
   <div class="card__band">
     <h2><i class="bi <?= $meta[$aktif][1] ?>"></i> <?= e($meta[$aktif][0]) ?></h2>
-    <span class="badge badge--rose"><?= count($detail) ?> data</span>
+    <span class="badge badge--rose"><?= $detail === null ? 'Gagal dimuat' : count($detail) . ' data' ?></span>
   </div>
-  <?php if (!$detail): ?>
+  <?php if ($detail === null): ?>
+    <p style="margin:0;font-size:13px;color:var(--muted-2)">Riwayat belum dapat dimuat dari SIMPEG. Silakan coba lagi beberapa saat lagi.</p>
+  <?php elseif (!$detail): ?>
     <p style="margin:0;font-size:13px;color:var(--muted-2)">Belum ada data pada kategori ini.</p>
   <?php else: ?>
     <div class="rows">
       <?php foreach ($detail as $d): ?>
-        <div class="row" style="grid-template-columns:1.6fr 1.2fr .8fr">
-          <strong><?= e($d['judul']) ?></strong>
-          <span style="color:var(--muted)"><?= e($d['keterangan']) ?></span>
-          <span class="mono"><?= e(tanggal_id($d['tanggal'])) ?></span>
+        <div class="row riwayat-row">
+          <div class="riwayat-row__head">
+            <strong><?= e($d['judul']) ?></strong>
+            <?php if ($d['label'] !== ''): ?><span class="badge badge--abu"><?= e($d['label']) ?></span><?php endif; ?>
+            <span class="mono"><?= e($d['waktu'] !== '' ? $d['waktu'] : '-') ?></span>
+          </div>
+          <?php if ($d['sub'] !== ''): ?><span class="riwayat-row__sub"><?= e($d['sub']) ?></span><?php endif; ?>
+          <?php if ($d['info']): ?>
+            <dl class="riwayat-row__info">
+              <?php foreach ($d['info'] as [$lbl, $nilai]): ?>
+                <div><dt><?= e($lbl) ?></dt><dd><?= e($nilai) ?></dd></div>
+              <?php endforeach; ?>
+            </dl>
+          <?php endif; ?>
+          <?php if ($d['dok'] && $d['id_rw'] !== ''): ?>
+            <div class="riwayat-row__dok">
+              <?php foreach ($d['dok'] as [$lbl, $kolom]): ?>
+                <a href="<?= e(url('riwayat_dok.php?' . http_build_query(['kategori' => $aktif, 'id' => $d['id_rw'], 'berkas' => $kolom]))) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> <?= e($lbl) ?></a>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
         </div>
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
+  <p class="riwayat-catatan"><i class="bi bi-info-circle"></i> Data riwayat bersumber dari SIMPEG (SIASN BKN). Bila ada data yang belum sesuai, ajukan perbaikan melalui admin OPD.</p>
 </section>
 <?php endif; ?>
 <?php if (can('absensi.view')): ?>
@@ -143,7 +179,13 @@ $meta = [
   function close() {
     if (busy) return;
     overlay.hidden = true;
-    if (reloadOnClose) { window.location.reload(); return; }
+    if (reloadOnClose) {
+      // Muat ulang tanpa cache riwayat di sesi agar hasil sinkron langsung tampil.
+      const next = new URL(window.location.href);
+      next.searchParams.set('segar', '1');
+      window.location.replace(next.href);
+      return;
+    }
     previousFocus?.focus();
   }
   // Badge kanan atas untuk tiap langkah. Teks lewat textContent (aman dari HTML).
