@@ -70,20 +70,18 @@ function riwayat_kategori_daftar(array $pegawai): array
 
 /**
  * Ambil baris mentah satu endpoint rw-*; null bila API gagal (beda dengan [] = memang belum ada data).
- * Endpoint rw-* dipasang di grup SIMPEG (SIMPEG memanggilnya lewat API_SIMPEG); grup TEMANKU dicoba sebagai cadangan.
- * Kode HTTP terakhir yang gagal dicatat di $GLOBALS['riwayat_api_kode'] untuk pesan & log.
+ * Rute /asn/rw-{jenis}/pns/{id} didaftarkan di grup TEMANKU (temanku.router.go), handler sama dengan SIMPEG.
+ * Kode HTTP kegagalan dicatat di $GLOBALS['riwayat_api_kode'] untuk pesan & log.
  */
 function riwayat_api(string $jenis, string $pnsId): ?array
 {
     $endpoint = '/asn/rw-' . $jenis . '/pns/' . rawurlencode($pnsId);
-    foreach ([API_SIMPEG, API_TEMANKU] as $base) {
-        [$kode, $json] = riwayat_api_get($base, $endpoint);
-        if ($kode >= 200 && $kode < 300 && is_array($json)) {
-            return array_values(array_filter(api_rows($json), 'is_array'));
-        }
-        $GLOBALS['riwayat_api_kode'] = $kode;
-        error_log('TEMANKU riwayat: GET ' . $base . $endpoint . ' gagal (HTTP ' . $kode . ')');
+    [$kode, $json] = riwayat_api_get(API_TEMANKU, $endpoint);
+    if ($kode >= 200 && $kode < 300 && is_array($json)) {
+        return array_values(array_filter(api_rows($json), 'is_array'));
     }
+    $GLOBALS['riwayat_api_kode'] = $kode;
+    error_log('TEMANKU riwayat: GET ' . $endpoint . ' gagal (HTTP ' . $kode . ')');
     return null;
 }
 

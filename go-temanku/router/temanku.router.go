@@ -223,6 +223,20 @@ func RegisterTemankuRoutes(r *gin.Engine) {
 		api.GET("/asn/rw-pendidikan/:nip", middleware.DualAuthMiddleware(), asn.GetAllRWPendidikanByNIPs)
 		api.GET("/asn/rw-pendidikan/id/:id", middleware.DualAuthMiddleware(), asn.GetRWPendidikanByID)
 
+		// RIWAYAT ASN per PNS_ID (baca saja) untuk halaman Riwayat web TEMANKU.
+		// Handler sama dengan grup SIMPEG (simpeg.router.go); tambah/ubah/sync tetap hanya lewat SIMPEG.
+		api.GET("/asn/rw-pendidikan/pns/:id", middleware.DualAuthMiddleware(), asn.GetAllRWPendidikanByPNS)
+		api.GET("/asn/rw-golongan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWGolonganByPNS)
+		api.GET("/asn/rw-penghargaan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWPenghargaanByPNS)
+		api.GET("/asn/rw-hukdis/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWHukdisByPNS)
+		api.GET("/asn/rw-kinerja/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWKinerjaByPNS)
+		api.GET("/asn/rw-pak/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWPakByPNS)
+		api.GET("/asn/rw-cpns/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWCpnsByPNS)
+		api.GET("/asn/rw-jabatan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWJabatanByPNS)
+		api.GET("/asn/rw-kursus/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWKursusByPNS)
+		api.GET("/asn/rw-diklatpim/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWDiklatPimByPNS)
+		api.GET("/asn/rw-pasangan/pns/:id", middleware.DualAuthMiddleware(), asn.GetRWPasanganByPNS)
+
 		// DINAS
 		api.GET("/dinas", middleware.DualAuthMiddleware(), lain.GetDinasAlls)
 		api.GET("/dinas/pegawai/:id", middleware.DualAuthMiddleware(), lain.GetDinasByPegawai)
