@@ -125,15 +125,18 @@ if ($aksi === 'ref') {
         rw_keluar(['success' => true, 'data' => $_SESSION['riwayat_ref'][$nama]]);
     }
     [$kode, $json] = riwayat_api_kirim('GET', $sumber);
-    if ($kode !== 200 || !is_array($json)) rw_keluar(['success' => false, 'message' => 'Referensi belum dapat dimuat (HTTP ' . $kode . ')'], 502);
+    if (($kode !== 200 || !is_array($json)) && $nama !== 'agama') rw_keluar(['success' => false, 'message' => 'Referensi belum dapat dimuat (HTTP ' . $kode . ')'], 502);
     $out = [];
-    foreach (api_rows($json) as $r) {
-        if (!is_array($r)) continue;
+    foreach (is_array($json) ? api_rows($json) : [] as $r) {
+        if (!is_array($r) || (isset($r['aktif']) && (int)$r['aktif'] !== 1)) continue;
         $id = '';
         foreach (['id', 'kode', 'harga_id', 'agama_id', 'id_agm', 'ID'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $id = trim((string)$r[$k]); break; } }
         $lbl = '';
-        foreach (['nama', 'name', 'harga_nama', 'agama', 'nm_agm', 'nama_agama', 'nmpendidikan'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $lbl = trim((string)$r[$k]); break; } }
+        foreach (['nama', 'name', 'harga_nama', 'nmagama', 'agama', 'nm_agm', 'nama_agama', 'nmpendidikan'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $lbl = trim((string)$r[$k]); break; } }
         if ($id !== '' && $lbl !== '') $out[] = ['id' => $id, 'nama' => $lbl];
+    }
+    if ($nama === 'agama' && !$out) {   // cadangan sesuai tbl_agama (seperti ref_agama() SIMPEG)
+        foreach (RIWAYAT_REF_AGAMA_CADANGAN as $id => $nm) $out[] = ['id' => (string)$id, 'nama' => $nm];
     }
     if (!in_array($nama, ['jurusan', 'unor', 'fungsional', 'pelaksana', 'struktural'], true)) $_SESSION['riwayat_ref'][$nama] = $out;
     rw_keluar(['success' => true, 'data' => $out]);
@@ -281,6 +284,44 @@ $tanpaBerkas = static function (array $d) use ($kolomDok): array {
     return $d;
 };
 
+/**
+ * Aturan per jenis seperti SIMPEG (dicek ulang di server, tidak hanya di form):
+ *  - cpns       : status yang sudah PNS tidak dapat dikembalikan ke CPNS
+ *  - pendidikan : pendidikan pertama hanya boleh satu
+ *  - pasangan   : pada urutan pasangan yang sama nama tidak boleh berganti (pasangan baru = Tambah);
+ *                 status perkawinan "Belum Menikah" tidak dapat menambah pasangan
+ */
+$aturan = static function (string $aksiU, array $data, array $lama, string $refId) use ($jenis, $pegawai, $kategori): void {
+    if ($jenis === 'cpns' && strtoupper((string)($lama['status'] ?? '')) === 'PNS' && strtoupper((string)($data['status'] ?? '')) === 'CPNS') {
+        rw_keluar(['success' => false, 'message' => 'Sudah PNS — status tidak dapat dikembalikan ke CPNS.', 'field' => 'status'], 422);
+    }
+    if ($jenis === 'pendidikan' && (string)($data['pertama'] ?? '') === '1') {
+        foreach (riwayat_data($pegawai, $kategori) ?? [] as $row) {
+            if (($row['jenis'] ?? '') === 'pendidikan' && $row['id_rw'] !== $refId && (string)($row['awal']['pertama'] ?? '') === '1') {
+                rw_keluar(['success' => false, 'message' => 'Pendidikan pertama sudah ditetapkan pada ' . $row['judul'] . '.', 'field' => 'pertama'], 422);
+            }
+        }
+    }
+    if ($jenis === 'pasangan') {
+        if ($aksiU === 'tambah') {
+            $idt = riwayat_identitas($pegawai);
+            if ($idt && (string)($idt['ubah']['jenisKawinId'] ?? '') === '4') {
+                rw_keluar(['success' => false, 'message' => 'Status perkawinan Anda di data utama "Belum Menikah". Perbarui status perkawinan di Identitas lebih dulu.'], 422);
+            }
+        }
+        $norm = static function (string $x): string {
+            $x = function_exists('mb_strtoupper') ? mb_strtoupper($x, 'UTF-8') : strtoupper($x);
+            return trim((string)preg_replace('/\s+/u', ' ', (string)preg_replace('/[^\p{L}\s]+/u', ' ', $x)));
+        };
+        $nB = $norm((string)($data['nama'] ?? '')); $nL = $norm((string)($lama['nama'] ?? ''));
+        if ($aksiU === 'ubah' && $nL !== '' && $nB !== $nL && (int)($data['pasangan_ke'] ?? 0) === (int)($lama['pasangan_ke'] ?? 0)
+            && (strlen($nB) >= 255 || strlen($nL) >= 255 || levenshtein($nB, $nL) > 2)) {
+            rw_keluar(['success' => false, 'field' => 'nama', 'message' => 'Nama pasangan berbeda dengan data awal pada urutan pasangan yang sama. '
+                . 'Data pasangan sebelumnya DILARANG ditimpa. Jika menikah lagi, gunakan "Tambah" dengan urutan pasangan berikutnya (mis. pasangan ke-2). Bila hanya koreksi penulisan nama, hubungi admin BKPSDM.'], 422);
+        }
+    }
+};
+
 if ($usulanId !== '') {
     // Perbaiki usulan sendiri (diajukan / dikembalikan) — PUT usulan yang sama.
     $u = riwayat_usulan_milik($pegawai, $usulanId);
@@ -293,6 +334,7 @@ if ($usulanId !== '') {
     } else {
         $dasar = $tanpaBerkas(riwayat_json_objek($u['data'] ?? null));
         $data = !empty($form['kunci_ubah']) && $aksiU === 'ubah' ? $dasar : riwayat_usul_data($jenis, $dasar, $isian);
+        $aturan($aksiU, $data, riwayat_json_objek($u['data_lama'] ?? null), (string)($u['ref_id'] ?? ''));
         $body = ['data' => $unggahDok($data, (string)($u['ref_id'] ?? ''))];
     }
     [$kode, $json] = riwayat_api_kirim('PUT', '/asn/usulan-riwayat/' . rawurlencode((string)$u['id']), $body);
@@ -328,8 +370,10 @@ if ($aksiBaru === 'hapus') {
             }
         }
     }
+    $lama = $dasar;
     $dasar = $tanpaBerkas($dasar);
     $data = !empty($form['kunci_ubah']) && $aksiBaru === 'ubah' ? $dasar : riwayat_usul_data($jenis, $dasar, $isian);
+    $aturan($aksiBaru, $data, $lama, $refId);
     $body['data'] = $unggahDok($data, $refId);
 }
 [$kode, $json] = riwayat_api_kirim('POST', '/asn/usulan-riwayat', $body);

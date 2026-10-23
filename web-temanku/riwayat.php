@@ -118,7 +118,7 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
   <div class="rw-panel__head">
     <div class="rw-panel__title"><h2>Identitas</h2><small>Data utama SIMPEG · SIASN BKN</small></div>
     <div class="rw-toolbar" role="toolbar" aria-label="Aksi identitas">
-      <?php if (can('absensi.view')): ?><button type="button" class="rw-pill" data-rw="segarkan"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button><?php endif; ?>
+      <?php if (can('absensi.view')): ?><button type="button" class="rw-pill rw-pill--kuning" data-rw="segarkan"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button><?php endif; ?>
       <?php if ($idt && $idt['ubahSiap']): ?><button type="button" class="rw-pill rw-pill--utama" data-rw="ubah-identitas"><i class="bi bi-pencil"></i><span>Ubah</span></button><?php endif; ?>
     </div>
   </div>
@@ -189,6 +189,8 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
         'izin' => $izin, 'form' => $formKat, 'baris' => $baris, 'usulan' => $usulanKat, 'usulanGagal' => $usulanSemua === null,
         'gagal' => $detail === null, 'kodeGagal' => $GLOBALS['riwayat_api_kode'] ?? null,
         'pdfMaks' => RIWAYAT_PDF_MAKS, 'dokRiwayat' => RIWAYAT_DOK_RIWAYAT, 'bukaUsulan' => ($_GET['usulan'] ?? '') === '1',
+        // status perkawinan "Belum Menikah" di data utama: pasangan tidak dapat ditambah (seperti SIMPEG)
+        'lajang' => $aktif === 'keluarga' && (string)((riwayat_identitas($pegawai)['ubah']['jenisKawinId'] ?? '')) === '4',
     ];
     $menunggu = $usulanMenunggu[$aktif] ?? 0;
 ?>
@@ -200,8 +202,8 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
       <small><?= $detail === null ? 'Gagal dimuat' : count($detail) . ' riwayat' ?><?= $menunggu ? ' · ' . (int)$menunggu . ' usulan diproses' : '' ?></small>
     </div>
     <div class="rw-toolbar" role="toolbar" aria-label="Aksi riwayat">
-      <button type="button" class="rw-pill" data-rw="sync"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button>
-      <button type="button" class="rw-pill" data-rw="usulan" aria-expanded="false" aria-controls="rw-usulan"><i class="bi bi-inboxes"></i><span>Usulan</span><?php if (count($usulanKat)): ?><b class="rw-count"><?= count($usulanKat) ?></b><?php endif; ?></button>
+      <button type="button" class="rw-pill rw-pill--kuning" data-rw="sync"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button>
+      <button type="button" class="rw-pill rw-pill--biru" data-rw="usulan" aria-expanded="false" aria-controls="rw-usulan"><i class="bi bi-inboxes"></i><span>Usulan</span><?php if (count($usulanKat)): ?><b class="rw-count"><?= count($usulanKat) ?></b><?php endif; ?></button>
       <?php if ($bisaTambah): ?><button type="button" class="rw-pill rw-pill--utama" data-rw="tambah"><i class="bi bi-plus-lg"></i><span>Tambah</span></button><?php endif; ?>
     </div>
   </div>

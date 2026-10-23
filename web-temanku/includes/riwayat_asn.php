@@ -265,6 +265,25 @@ function riwayat_baris_kursus(array $g): array
         [['Sertifikat', 'sertifikat']], rw_s($g, 'jenis_diklat_nama') ?: rw_s($g, 'jenis_kursus_nama'));
 }
 
+/** Referensi agama aktif [id => nama] (tbl_agama: id_agm, nmagama), cache sesi; cadangan bila API gagal. */
+function riwayat_ref_agama(): array
+{
+    if (isset($_SESSION['riwayat_ref_agama']) && is_array($_SESSION['riwayat_ref_agama'])) return $_SESSION['riwayat_ref_agama'];
+    $list = [];
+    [$kode, $json] = riwayat_api_get(API_TEMANKU, '/agama');
+    if ($kode === 200 && is_array($json)) {
+        foreach (api_rows($json) as $a) {
+            if (!is_array($a) || (isset($a['aktif']) && (int)$a['aktif'] !== 1)) continue;
+            $id = (string)(int)($a['id_agm'] ?? ($a['id'] ?? 0));
+            $nm = trim((string)($a['nmagama'] ?? ($a['nama'] ?? ($a['agama'] ?? ''))));
+            if ($id !== '0' && $nm !== '') $list[$id] = $nm;
+        }
+    }
+    if (!$list) return RIWAYAT_REF_AGAMA_CADANGAN;
+    return $_SESSION['riwayat_ref_agama'] = $list;
+}
+const RIWAYAT_REF_AGAMA_CADANGAN = ['1' => 'Islam', '2' => 'Kristen', '3' => 'Katholik', '4' => 'Hindu', '5' => 'Buddha', '6' => 'Konghucu', '7' => 'Lainnya'];
+
 function riwayat_baris_pasangan(array $g): array
 {
     $status = ['1' => 'Menikah', '2' => 'Cerai', '3' => 'Meninggal'][rw_s($g, 'status_pernikahan')] ?? '';
@@ -278,6 +297,8 @@ function riwayat_baris_pasangan(array $g): array
          ['Akta nikah', rw_sk(rw_s($g, 'no_akta_menikah'), $nikah)],
          ['Akta cerai', rw_sk(rw_s($g, 'no_akta_cerai'), rw_s($g, 'tgl_cerai'))],
          ['Akta kematian', rw_sk(rw_s($g, 'no_akta_meninggal'), rw_s($g, 'tgl_meninggal'))],
+         ['Agama', rw_s($g, 'agama_id') !== '' ? (riwayat_ref_agama()[(string)(int)rw_s($g, 'agama_id')] ?? rw_s($g, 'agama_nama')) : rw_s($g, 'agama_nama')],
+         ['NIK', rw_s($g, 'nomor_identitas')],
          ['Pekerjaan', (int)($g['is_pns'] ?? 0) === 1 ? 'PNS' : '']],
         [['Buku/akta nikah', 'akta']]);
 }
@@ -328,7 +349,8 @@ function riwayat_baris_cpns(array $g): array
         [['TMT CPNS', rw_tgl(rw_s($g, 'tmt_cpns'))], ['SK CPNS', rw_sk(rw_s($g, 'no_sk_cpns'), rw_s($g, 'tgl_sk_cpns'))],
          ['TMT PNS', rw_tgl(rw_s($g, 'tmt_pns'))], ['SK PNS', rw_sk(rw_s($g, 'no_sk_pns'), rw_s($g, 'tgl_sk_pns'))],
          ['SPMT', rw_sk(rw_s($g, 'no_spmt'), rw_s($g, 'tgl_spmt'))], ['TMT tugas', rw_tgl(rw_s($g, 'tmt_tugas'))],
-         ['STTPL', rw_sk(rw_s($g, 'no_sttpl'), rw_s($g, 'tgl_sttpl'))], ['Karpeg', rw_s($g, 'karpeg')]],
+         ['STTPL', rw_sk(rw_s($g, 'no_sttpl'), rw_s($g, 'tgl_sttpl'))], ['Surat ket. dokter', rw_sk(rw_s($g, 'no_dokter'), rw_s($g, 'tgl_dokter'))],
+         ['Pertek CPNS/PNS > 2 tahun', rw_sk(rw_s($g, 'pertek_nomor'), rw_s($g, 'pertek_tgl'))], ['Karpeg', rw_s($g, 'karpeg')]],
         [['SK CPNS', 'sk_cpns'], ['SK PNS', 'sk_pns'], ['SPMT', 'spmt']]);
 }
 

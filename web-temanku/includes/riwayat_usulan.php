@@ -131,7 +131,8 @@ function riwayat_form_daftar(): array
             ['k' => 'penilai_jabatan', 'l' => 'Jabatan pejabat penilai', 't' => 'text', 'max' => 255, 'lebar' => 'penuh'],
             ['k' => 'penilai_unor', 'l' => 'Unit kerja pejabat penilai', 't' => 'text', 'max' => 255, 'lebar' => 'penuh'],
             ['k' => 'penilai_golongan', 'l' => 'Golongan pejabat penilai', 't' => 'select', 'o' => riwayat_opsi_golongan()],
-        ], 'dok' => [['skp', 'Dokumen SKP', true]]],
+        ], 'dok' => [['skp', 'Dokumen SKP', true]], 'kunci_ubah' => true,
+            'catatan' => 'Data kinerja mengikuti SIASN / e-Kinerja dan dikunci. Yang dapat diperbarui hanya dokumen SKP.'],
 
         'pak' => ['field' => [
             ['k' => 'no_sk', 'l' => 'Nomor SK PAK', 't' => 'text', 'w' => true, 'max' => 255],
@@ -148,25 +149,31 @@ function riwayat_form_daftar(): array
         ], 'dok' => [['dok_pak', 'Dokumen PAK', false], ['sk_pak', 'SK PAK', false]], 'catatan' => 'Minimal satu dokumen (Dokumen PAK atau SK PAK) wajib diunggah.'],
 
         'cpns' => ['field' => [
+            // sama dengan form Data CPNS/PNS SIMPEG: bagian PNS & syarat pengangkatan hanya untuk status PNS
             ['k' => 'status', 'l' => 'Status kepegawaian', 't' => 'select', 'w' => true, 'o' => [['CPNS', 'CPNS'], ['PNS', 'PNS']]],
-            ['k' => 'jabatan_angkat', 'l' => 'Jabatan saat diangkat CPNS', 't' => 'text', 'max' => 255],
-            ['k' => 'tmt_cpns', 'l' => 'TMT CPNS', 't' => 'date'],
+            ['k' => '_sec_cpns', 'l' => 'CPNS', 't' => 'judul'],
             ['k' => 'no_sk_cpns', 'l' => 'Nomor SK CPNS', 't' => 'text', 'w' => true, 'max' => 255],
             ['k' => 'tgl_sk_cpns', 'l' => 'Tanggal SK CPNS', 't' => 'date', 'w' => true],
-            ['k' => 'tmt_pns', 'l' => 'TMT PNS', 't' => 'date', 'bantu' => 'Wajib bila status PNS'],
-            ['k' => 'no_sk_pns', 'l' => 'Nomor SK PNS', 't' => 'text', 'max' => 255],
-            ['k' => 'tgl_sk_pns', 'l' => 'Tanggal SK PNS', 't' => 'date'],
-            ['k' => 'no_sttpl', 'l' => 'Nomor STTPL', 't' => 'text', 'max' => 100],
-            ['k' => 'tgl_sttpl', 'l' => 'Tanggal STTPL', 't' => 'date'],
+            ['k' => 'jabatan_angkat', 'l' => 'Jabatan angkat CPNS', 't' => 'text', 'max' => 255],
+            ['k' => 'tmt_cpns', 'l' => 'TMT CPNS', 't' => 'date'],
+            ['k' => '_sec_pns', 'l' => 'PNS', 't' => 'judul', 'tampil' => ['status', 'PNS']],
+            ['k' => 'no_sk_pns', 'l' => 'Nomor SK PNS', 't' => 'text', 'w' => true, 'max' => 255, 'tampil' => ['status', 'PNS']],
+            ['k' => 'tgl_sk_pns', 'l' => 'Tanggal SK PNS', 't' => 'date', 'w' => true, 'tampil' => ['status', 'PNS']],
+            ['k' => 'tmt_pns', 'l' => 'TMT PNS', 't' => 'date', 'w' => true, 'tampil' => ['status', 'PNS']],
+            ['k' => '_sec_lain', 'l' => 'Data lainnya', 't' => 'judul'],
             ['k' => 'no_spmt', 'l' => 'Nomor SPMT', 't' => 'text', 'max' => 100],
             ['k' => 'tgl_spmt', 'l' => 'Tanggal SPMT', 't' => 'date'],
+            ['k' => 'no_sttpl', 'l' => 'Nomor STTPL', 't' => 'text', 'max' => 100, 'tampil' => ['status', 'PNS']],
+            ['k' => 'tgl_sttpl', 'l' => 'Tanggal STTPL', 't' => 'date', 'tampil' => ['status', 'PNS']],
+            ['k' => 'no_dokter', 'l' => 'Nomor surat keterangan dokter', 't' => 'text', 'max' => 100, 'tampil' => ['status', 'PNS']],
+            ['k' => 'tgl_dokter', 'l' => 'Tanggal surat keterangan dokter', 't' => 'date', 'tampil' => ['status', 'PNS']],
+            ['k' => 'pertek_nomor', 'l' => 'Nomor Pertek CPNS/PNS > 2 tahun', 't' => 'text', 'max' => 100, 'tampil' => ['status', 'PNS'],
+                'bantu' => 'Pertek BKN untuk CPNS yang diangkat PNS lebih dari 2 tahun.'],
+            ['k' => 'pertek_tgl', 'l' => 'Tanggal Pertek CPNS/PNS > 2 tahun', 't' => 'date', 'tampil' => ['status', 'PNS']],
+            ['k' => 'karpeg', 'l' => 'Kartu pegawai', 't' => 'text', 'max' => 50],
             ['k' => 'tmt_tugas', 'l' => 'TMT melaksanakan tugas', 't' => 'date'],
-            ['k' => 'karpeg', 'l' => 'Nomor kartu pegawai', 't' => 'text', 'max' => 50],
-            ['k' => 'no_dokter', 'l' => 'Nomor surat keterangan dokter', 't' => 'text', 'max' => 100],
-            ['k' => 'tgl_dokter', 'l' => 'Tanggal surat keterangan dokter', 't' => 'date'],
-            ['k' => 'pertek_nomor', 'l' => 'Nomor pertek CPNS ke PNS', 't' => 'text', 'max' => 100],
-            ['k' => 'pertek_tgl', 'l' => 'Tanggal pertek', 't' => 'date'],
-        ], 'dok' => [['sk_cpns', 'SK CPNS', false], ['sk_pns', 'SK PNS', false], ['spmt', 'SPMT', false]]],
+        ], 'dok' => [['sk_cpns', 'SK CPNS', false], ['sk_pns', 'SK PNS', false, ['status', 'PNS']], ['spmt', 'SPMT', false]],
+            'catatan' => 'Status yang sudah PNS tidak dapat dikembalikan ke CPNS. SIASN mewajibkan SK PNS saat data PNS dikirim.'],
 
         'kursus' => ['field' => [
             ['k' => 'jenis_diklat_id', 'l' => 'Jenis diklat', 't' => 'select', 'w' => true, 'ref' => 'diklat', 'nama' => 'jenis_diklat_nama'],
@@ -191,13 +198,13 @@ function riwayat_form_daftar(): array
             ['k' => 'jenis_kompetensi', 'l' => 'Jenis kompetensi', 't' => 'text', 'max' => 255],
         ], 'dok' => [['sertifikat', 'Sertifikat', true]]],
 
-        'jabatan' => ['field' => riwayat_field_jabatan(false), 'dok' => [['sk', 'SK jabatan', false], ['lantik', 'Dokumen pelantikan', false], ['sk_mutasi', 'SK mutasi', false]],
-            'catatan' => 'SK jabatan atau SK mutasi wajib diunggah untuk riwayat baru.'],
+        'jabatan' => ['field' => riwayat_field_jabatan(false), 'dok' => [['sk', 'SK jabatan', false], ['lantik', 'Dokumen pelantikan', false], ['sk_mutasi', 'SK mutasi', false, ['jenis', ['2', '4']]]],
+            'catatan' => 'SK jabatan atau SK mutasi wajib diunggah untuk riwayat baru (kecuali Mutasi Unor: SK riwayat dasar dipakai).'],
         'tugas' => ['field' => riwayat_field_jabatan(true), 'dok' => [['sk', 'SK tugas tambahan', true], ['lantik', 'Dokumen pelantikan', false]]],
 
         'pasangan' => ['field' => [
-            ['k' => 'nama', 'l' => 'Nama pasangan', 't' => 'text', 'w' => true, 'lebar' => 'penuh', 'max' => 255],
-            ['k' => 'pasangan_ke', 'l' => 'Pasangan ke-', 't' => 'int', 'w' => true, 'min' => 1, 'max' => 4],
+            ['k' => 'pasangan_ke', 'l' => 'Pasangan ke-', 't' => 'select', 'w' => true, 'o' => [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']]],
+            ['k' => 'nama', 'l' => 'Nama pasangan', 't' => 'text', 'w' => true, 'max' => 255],
             ['k' => 'jenis_kelamin', 'l' => 'Jenis kelamin', 't' => 'select', 'o' => [['L', 'Laki-laki'], ['P', 'Perempuan']]],
             ['k' => 'tempat_lahir', 'l' => 'Tempat lahir', 't' => 'text', 'max' => 255],
             ['k' => 'tgl_lahir', 'l' => 'Tanggal lahir', 't' => 'date', 'w' => true],
@@ -206,7 +213,7 @@ function riwayat_form_daftar(): array
             ['k' => 'no_hp', 'l' => 'Nomor HP', 't' => 'tel', 'max' => 20],
             ['k' => 'email', 'l' => 'Email', 't' => 'email', 'max' => 100],
             ['k' => 'alamat', 'l' => 'Alamat', 't' => 'textarea', 'lebar' => 'penuh', 'max' => 500],
-            ['k' => 'is_pns', 'l' => 'Pasangan berstatus PNS', 't' => 'check'],
+            ['k' => 'is_pns', 'l' => 'Pekerjaan', 't' => 'select', 'o' => [['0', 'Bukan PNS'], ['1', 'PNS']]],
             ['k' => 'status_pernikahan', 'l' => 'Status pernikahan', 't' => 'select', 'w' => true, 'o' => [['1', 'Menikah'], ['2', 'Cerai'], ['3', 'Meninggal']]],
             ['k' => 'no_akta_menikah', 'l' => 'Nomor akta / buku nikah', 't' => 'text', 'w' => true, 'max' => 255],
             ['k' => 'tgl_akta_menikah', 'l' => 'Tanggal menikah', 't' => 'date', 'w' => true],
@@ -214,7 +221,8 @@ function riwayat_form_daftar(): array
             ['k' => 'tgl_cerai', 'l' => 'Tanggal cerai', 't' => 'date', 'tampil' => ['status_pernikahan', '2']],
             ['k' => 'no_akta_meninggal', 'l' => 'Nomor surat keterangan kematian', 't' => 'text', 'max' => 255, 'tampil' => ['status_pernikahan', '3']],
             ['k' => 'tgl_meninggal', 'l' => 'Tanggal meninggal', 't' => 'date', 'tampil' => ['status_pernikahan', '3']],
-        ], 'dok' => [['akta', 'Buku / akta nikah', false]]],
+        ], 'dok' => [['akta', 'Buku / akta nikah', false]],
+            'catatan' => 'Data pasangan dikirim ke SIASN BKN oleh admin setelah usulan disetujui (buku/akta nikah ikut dikirim). Pada urutan pasangan yang sama, nama tidak boleh diganti: bila menikah lagi gunakan Tambah dengan urutan berikutnya. Perubahan NIK tidak dapat dikirim ke SIASN dari aplikasi — hubungi admin BKPSDM.'],
     ];
     return $f;
 }
@@ -229,18 +237,27 @@ function riwayat_field_jabatan(bool $tugas): array
     } else {
         $f[] = ['k' => 'jenis', 'l' => 'Jenis jabatan', 't' => 'select', 'w' => true, 'o' => [['1', 'Struktural'], ['2', 'Fungsional'], ['4', 'Pelaksana']]];
     }
-    $f[] = ['k' => 'unor_id', 'l' => 'Unit organisasi', 't' => 'search', 'w' => true, 'ref' => 'unor', 'nama' => 'unor_nama', 'lebar' => 'penuh',
-        'bantu' => $tugas ? 'Jabatan struktural yang ditempati mengikuti unit organisasi.' : 'Ketik minimal 2 huruf. Untuk struktural, nama jabatan mengikuti unit organisasi.'];
+    if (!$tugas) {
+        $f[] = ['k' => 'jenis_mutasi', 'l' => 'Jenis mutasi', 't' => 'select', 'kosong' => '— Tidak ada —', 'o' => [['MJ', 'Mutasi Jabatan (MJ)'], ['MU', 'Mutasi Unor (MU)']], 'tampil' => ['jenis', ['2', '4']]];
+    }
+    $f[] = ['k' => 'unor_id', 'l' => 'Unit organisasi', 't' => 'search', 'w' => true, 'ref' => 'unor', 'nama' => 'unor_nama', 'lebar' => 'penuh', 'bantu' => 'Ketik minimal 2 huruf.'];
+    // Struktural (dan tugas tambahan): jabatan mengikuti unit organisasi, tampil hanya-baca seperti SIMPEG.
+    $f[] = ['k' => '_struk', 'l' => 'Jabatan struktural (otomatis dari unit)', 't' => 'struk', 'lebar' => 'penuh', 'tampil' => ['jenis', '1'],
+        'bantu' => $tugas ? 'Tugas tambahan selalu menempati jabatan struktural pada unit yang dipilih.' : ''];
     if (!$tugas) {
         $f[] = ['k' => 'fungsional_id', 'l' => 'Jabatan fungsional', 't' => 'search', 'w' => true, 'ref' => 'fungsional', 'nama' => 'jabatan_nama', 'lebar' => 'penuh', 'tampil' => ['jenis', '2']];
         $f[] = ['k' => 'umum_id', 'l' => 'Jabatan pelaksana', 't' => 'search', 'w' => true, 'ref' => 'pelaksana', 'nama' => 'jabatan_nama', 'lebar' => 'penuh', 'tampil' => ['jenis', '4']];
-        $f[] = ['k' => 'jenis_mutasi', 'l' => 'Jenis mutasi', 't' => 'select', 'o' => [['MJ', 'Mutasi jabatan'], ['MU', 'Mutasi unit organisasi']], 'tampil' => ['jenis', ['2', '4']]];
-        $f[] = ['k' => 'tmt_mutasi', 'l' => 'TMT mutasi', 't' => 'date', 'tampil' => ['jenis', ['2', '4']]];
     }
+    $f[] = ['k' => '_sec_sk', 'l' => 'Surat keputusan', 't' => 'judul'];
     $f[] = ['k' => 'no_sk', 'l' => 'Nomor SK', 't' => 'text', 'w' => true, 'max' => 255];
     $f[] = ['k' => 'tgl_sk', 'l' => 'Tanggal SK', 't' => 'date', 'w' => true];
     $f[] = ['k' => 'tmt_jabatan', 'l' => $tugas ? 'TMT tugas' : 'TMT jabatan', 't' => 'date', 'w' => true];
-    $f[] = ['k' => 'tmt_pelantikan', 'l' => 'TMT pelantikan', 't' => 'date'];
+    $f[] = ['k' => 'tmt_pelantikan', 'l' => 'TMT pelantikan', 't' => 'date', 'tampil' => ['jenis', '1']];
+    if (!$tugas) {
+        $f[] = ['k' => 'tmt_mutasi', 'l' => 'TMT mutasi', 't' => 'date', 'w' => true, 'tampil' => ['jenis_mutasi', 'MU']];
+        // Mutasi Unor: riwayat dasar (MJ terakhir) + SK-nya, seperti "Dokumen Dasar Mutasi Unor" SIMPEG
+        $f[] = ['k' => '_dasar_mu', 'l' => 'Dokumen dasar Mutasi Unor', 't' => 'dasar_mu', 'lebar' => 'penuh', 'tampil' => ['jenis_mutasi', 'MU']];
+    }
     return $f;
 }
 
@@ -454,16 +471,21 @@ function riwayat_usul_data(string $jenis, array $dasar, array $isian): array
         return function_exists('mb_substr') ? mb_substr($s, 0, $max) : substr($s, 0, $max);
     };
     // Field bersyarat (mis. jabatan fungsional hanya untuk jenis 2) dinilai dari isian yang dikirim.
-    $aktif = static function (array $f) use ($isian, $dasar): bool {
+    $def = array_column($form['field'], null, 'k');
+    // Field bersyarat bertingkat: field aktif bila syaratnya terpenuhi DAN field syaratnya sendiri aktif
+    // (mis. TMT mutasi hanya untuk MU, dan jenis mutasi hanya untuk fungsional/pelaksana).
+    $aktif = static function (array $f, int $dalam = 0) use (&$aktif, $isian, $dasar, $def): bool {
         if (empty($f['tampil'])) return true;
         [$dep, $nilai] = $f['tampil'];
+        if ($dalam < 4 && isset($def[$dep]) && !$aktif($def[$dep], $dalam + 1)) return false;
         $v = (string)($isian[$dep] ?? ($dasar[$dep] ?? ''));
         return in_array($v, (array)$nilai, true);
     };
     foreach ($form['field'] as $f) {
         $k = $f['k'];
         if ($f['t'] === 'tetap') { $data[$k] = (string)$f['nilai']; continue; }
-        if (!$aktif($f)) continue;
+        if (in_array($f['t'], ['judul', 'struk', 'dasar_mu'], true)) continue;   // hanya tampilan
+        if (!$aktif($f)) { if (!empty($f['tampil']) && array_key_exists($k, $data) && $f['t'] !== 'search') $data[$k] = ''; continue; }
         if (!array_key_exists($k, $isian)) continue;   // tidak dikirim: nilai dasar dipertahankan
         $v = $isian[$k];
         $v = is_string($v) ? trim($v) : '';
