@@ -611,8 +611,6 @@
     if (!r._cari) r._cari = [r.judul, r.sub, r.label, r.waktu].concat((r.info || []).map(function (p) { return p[1]; })).join(' ').toLowerCase();
     return r._cari;
   }
-  /** Warna badge info diputar agar daftar tidak monoton; tanggal selalu biru. */
-  var WARNA_BADGE = ['hijau', 'kuning', 'ungu', 'tosca', 'oranye'];
   function badgeInfo(teks, warna, ik, judul) {
     var b = el('span', 'rw-bdg rw-bdg--' + warna);
     if (ik) b.append(ikon(ik));
@@ -620,39 +618,37 @@
     if (judul) b.title = judul;
     return b;
   }
+  /**
+   * Satu riwayat = satu kartu (desktop: penuh selebar panel). Judul & keterangan boleh 2–3 baris.
+   * Desktop: tanggal + label sebagai badge, info lain teks biasa, dokumen & Edit/Hapus di kanan.
+   * Mobile: cukup judul & keterangan (aksi lewat detail / bottom sheet).
+   */
   function kartu(r) {
     var card = el('article', 'rw-card'); card.dataset.idx = r.idx; card.tabIndex = 0; card.setAttribute('role', 'button');
     card.setAttribute('aria-label', r.judul + (r.waktu ? ', ' + r.waktu : '') + ' — lihat detail');
-    var atas = el('div', 'rw-card__atas');
     var ico = el('span', 'rw-card__ico ico--' + (CFG.warna || 'tosca')); ico.append(ikon(CFG.ikon || 'bi-folder'));
+    if (r.usulan) { var dot = el('b', 'rw-card__dot'); dot.title = 'Ada usulan diproses'; ico.append(dot); }
     var body = el('div', 'rw-card__body');
     body.append(el('h3', 'rw-card__judul', r.judul));
     if (r.sub) body.append(el('p', 'rw-card__sub', r.sub));
-    atas.append(ico, body, ikon('bi-chevron-right rw-card__panah'));
-    card.append(atas);
-    // info sebagai badge berwarna
-    var bdg = el('div', 'rw-card__bdg');
-    if (r.usulan) bdg.append(badgeInfo('Usulan diproses', 'kuning', 'bi-hourglass-split'));
-    if (r.waktu) bdg.append(badgeInfo(r.waktu, 'biru', 'bi-calendar3', 'Tanggal'));
-    if (r.label) bdg.append(badgeInfo(r.label, 'merah-muda', 'bi-bookmark-fill'));
-    (r.info || []).filter(function (p) { return String(p[1]).length <= 70; }).slice(0, 4).forEach(function (p, i) {
-      var b = badgeInfo(p[1], WARNA_BADGE[i % WARNA_BADGE.length], ikonLabel(p[0]), p[0]);
-      if (i >= 2) b.classList.add('rw-bdg--lebih');     // mobile: cukup 2 info
-      bdg.append(b);
-    });
-    if ((r.dok || []).length && r.id_rw) bdg.append(badgeInfo(r.dok.length + ' dokumen', 'abu', 'bi-paperclip', 'Dokumen'));
-    if (bdg.childNodes.length) card.append(bdg);
-    // kaki (desktop): dokumen + tombol Edit / Hapus; mobile disembunyikan (aksi lewat detail)
-    var iz = IZIN[r.jenis] || {};
-    var kaki = el('div', 'rw-card__kaki');
-    var dok = el('div', 'rw-card__dok');
+    var meta = el('div', 'rw-card__meta');
+    if (r.usulan) meta.append(badgeInfo('Usulan diproses', 'kuning', 'bi-hourglass-split'));
+    if (r.waktu) meta.append(badgeInfo(r.waktu, 'biru', 'bi-calendar3', 'Tanggal'));
+    if (r.label) meta.append(badgeInfo(r.label, 'tosca', null));
+    var info2 = (r.info || []).filter(function (p) { return String(p[1]) !== String(r.waktu); }).slice(0, 3);
+    if (info2.length) meta.append(el('span', 'rw-card__info', info2.map(function (p) { return p[0] + ': ' + p[1]; }).join('  ·  ')));
+    if (meta.childNodes.length) body.append(meta);
+    var kanan = el('div', 'rw-card__kanan');
     if ((r.dok || []).length && r.id_rw) {
+      var dok = el('div', 'rw-card__dok');
       r.dok.slice(0, 3).forEach(function (d) {
         var b = el('button', 'rw-dok'); b.type = 'button'; b.dataset.rw = 'lihat'; b.dataset.idx = r.idx; b.dataset.dok = d[1]; b.title = 'Lihat ' + d[0];
         b.append(ikon('bi-file-earmark-pdf-fill'), document.createTextNode(d[0]));
         dok.append(b);
       });
+      kanan.append(dok);
     }
+    var iz = IZIN[r.jenis] || {};
     var act = el('div', 'rw-card__aksi');
     var mk = function (aksi, lbl, ik, cls) {
       var b = el('button', 'rw-btn rw-btn--xs ' + cls); b.type = 'button'; b.dataset.rw = aksi; b.dataset.idx = r.idx;
@@ -660,7 +656,10 @@
     };
     if (iz.ubah) mk('ubah', 'Edit', 'bi-pencil-square', 'rw-btn--kuning');
     if (iz.hapus) mk('hapus', 'Hapus', 'bi-trash3', 'rw-btn--merah-garis');
-    if (dok.childNodes.length || act.childNodes.length) { kaki.append(dok, act); card.append(kaki); }
+    if (act.childNodes.length) kanan.append(act);
+    card.append(ico, body);
+    if (kanan.childNodes.length) card.append(kanan);
+    card.append(ikon('bi-chevron-right rw-card__panah'));
     return card;
   }
   function renderDaftar() {
