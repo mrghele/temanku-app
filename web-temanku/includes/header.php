@@ -47,7 +47,7 @@ $f          = flash();
           .api-status__i.is-cek .api-status__d{animation:api-denyut 1s infinite}
           .api-status__sep{width:1px;height:14px;background:rgba(15,23,42,.12)}
           @keyframes api-denyut{50%{opacity:.3}}
-          @media (max-width:820px){.api-status{height:32px;padding:0 9px;gap:5px}.api-status__t{display:none}}
+          @media (max-width:820px){.api-status{display:none}}  /* mobile: status tampil di dialog sync halaman Riwayat */
           </style>
           <button type="button" class="api-status" id="api-status" data-url="<?= e(url('riwayat_aksi.php')) ?>" title="Status koneksi API — klik untuk periksa ulang" aria-label="Status koneksi API SIMPEG dan BKN">
             <span class="api-status__i is-cek" data-api="simpeg"><span class="api-status__d"></span><span>SIMPEG</span></span>

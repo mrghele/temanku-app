@@ -388,17 +388,11 @@ function riwayat_baris_hukdis(array $g): array
 
 /* ---------- Identitas (data utama SIMPEG/SIASN) ---------- */
 
-/** Label kolom data utama (GET /asn/data-utama/{PNS_ID}) per kelompok tampilan. */
+/** Label kolom data utama SIASN (GET /asn/data-utama/{PNS_ID}) yang hanya dibaca, per kelompok. */
 const RIWAYAT_IDENTITAS = [
     'Data pribadi' => [
         'nipBaru' => ['NIP', 'bi-person-vcard'], 'nipLama' => ['NIP lama', 'bi-person-vcard'], 'nik' => ['NIK', 'bi-credit-card-2-front'],
-        'tempatLahir' => ['Tempat lahir', 'bi-geo-alt'], 'tglLahir' => ['Tanggal lahir', 'bi-calendar3'],
-        'jenisKelamin' => ['Jenis kelamin', 'bi-gender-ambiguous'], 'agama' => ['Agama', 'bi-moon-stars'],
-        'statusPerkawinan' => ['Status perkawinan', 'bi-heart'],
-    ],
-    'Kontak' => [
-        'noHp' => ['Nomor HP', 'bi-phone'], 'email' => ['Email', 'bi-envelope'], 'emailGov' => ['Email dinas', 'bi-envelope-at'],
-        'alamat' => ['Alamat', 'bi-house'],
+        'tglLahir' => ['Tanggal lahir', 'bi-calendar3'], 'jenisKelamin' => ['Jenis kelamin', 'bi-gender-ambiguous'],
     ],
     'Kepegawaian' => [
         'statusPegawai' => ['Status pegawai', 'bi-person-badge'], 'kedudukanPnsNama' => ['Kedudukan', 'bi-patch-check'],
@@ -413,9 +407,15 @@ const RIWAYAT_IDENTITAS = [
     ],
 ];
 
+/** Pilihan identitas yang dapat diubah (sama dengan referensi.php SIMPEG). */
+const RIWAYAT_REF_KAWIN = ['1' => 'Menikah', '2' => 'Janda', '3' => 'Duda', '4' => 'Belum Menikah'];
+const RIWAYAT_REF_GOL_DARAH = ['A', 'B', 'AB', 'O'];
+/** Kolom identitas yang juga dikirim ke SIASN BKN bila diubah (identitas.save.php SIMPEG). */
+const RIWAYAT_IDT_BKN = ['agamaId', 'tempatLahirId', 'alamat', 'noHp', 'email', 'emailGov'];
+
 /**
- * Identitas pegawai yang login: ['nama', 'kelompok' => [judul => [[label, nilai, ikon]]]]; null bila API gagal.
- * Disimpan di sesi selama RIWAYAT_CACHE_TTL detik.
+ * Identitas pegawai yang login: nama, NIP, kelompok data SIASN (hanya baca) dan nilai yang dapat diubah
+ * (GET /asn/data-utama/{PNS_ID}/identitas, seperti tab Identitas SIMPEG). null bila API gagal.
  */
 function riwayat_identitas(array $pegawai, bool $segar = false): ?array
 {
@@ -440,7 +440,23 @@ function riwayat_identitas(array $pegawai, bool $segar = false): ?array
             $kelompok[$judul][] = [$label, $v, $ikon];
         }
     }
-    $data = ['nama' => $nama !== '' ? $nama : rw_s($d, 'nama'), 'nip' => rw_s($d, 'nipBaru') ?: $pegawai['nip'], 'kelompok' => $kelompok];
+    // Nilai yang dapat diubah: dari endpoint identitas (kolom SIMPEG); cadangan dari data utama.
+    [$kodeI, $idt] = riwayat_api_get(API_TEMANKU, '/asn/data-utama/' . rawurlencode($pegawai['pns_id']) . '/identitas');
+    $siap = $kodeI === 200 && is_array($idt);
+    $idt = $siap ? (isset($idt['data']) && is_array($idt['data']) && !isset($idt['id']) ? $idt['data'] : $idt) : [];
+    $ambil = static function (string $k, string $cadangan = '') use ($idt, $d): string {
+        $v = isset($idt[$k]) && is_scalar($idt[$k]) ? trim((string)$idt[$k]) : '';
+        return $v !== '' && $v !== '0' ? $v : rw_s($d, $cadangan !== '' ? $cadangan : $k);
+    };
+    $ubah = [
+        'agamaId' => $ambil('agamaId'), 'agama' => rw_s($d, 'agama'),
+        'jenisKawinId' => $ambil('jenisKawinId'), 'golDarah' => strtoupper($ambil('golDarah')),
+        'tempatLahirId' => $ambil('tempatLahirId'), 'tempatLahir' => $ambil('tempatLahir'),
+        'alamat' => $ambil('alamat'), 'noHp' => $ambil('noHp'), 'email' => $ambil('email'), 'emailGov' => $ambil('emailGov'),
+    ];
+    $ubah['kawin'] = RIWAYAT_REF_KAWIN[$ubah['jenisKawinId']] ?? rw_s($d, 'statusPerkawinan');
+    $data = ['nama' => $nama !== '' ? $nama : rw_s($d, 'nama'), 'nip' => rw_s($d, 'nipBaru') ?: $pegawai['nip'], 'kelompok' => $kelompok,
+        'ubah' => $ubah, 'ubahSiap' => $siap];
     $_SESSION['riwayat_identitas'] = ['pns_id' => $pegawai['pns_id'], 'sampai' => time() + RIWAYAT_CACHE_TTL, 'data' => $data];
     return $data;
 }

@@ -261,6 +261,11 @@ func RegisterTemankuRoutes(r *gin.Engine) {
 		api.PATCH("/asn/rw-diklatpim/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenDiklatPim)
 		api.PATCH("/asn/rw-pasangan/:id/dokumen", middleware.DualAuthMiddleware(), asn.PatchDokumenPasangan)
 
+		// IDENTITAS milik sendiri (edit seperti SIMPEG; web TEMANKU hanya mengirim PNS_ID sesi dan tidak mengirim unit)
+		api.GET("/asn/data-utama/:id/identitas", middleware.DualAuthMiddleware(), asn.GetIdentitasPegawai)
+		api.PATCH("/asn/data-utama/:id/identitas", middleware.DualAuthMiddleware(), asn.PatchIdentitasPegawai)
+		api.GET("/wilayah", middleware.DualAuthMiddleware(), pref.GetAllWilayahs) // tempat lahir (kabupaten/kota SIASN)
+
 		// REFERENSI form usulan riwayat
 		api.GET("/asn/ref-pendidikan", middleware.DualAuthMiddleware(), asn.GetRefPendidikan)
 		api.GET("/asn/ref-jurusan", middleware.DualAuthMiddleware(), asn.GetRefJurusan)

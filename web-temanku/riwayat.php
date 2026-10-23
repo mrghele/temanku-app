@@ -27,8 +27,8 @@ foreach ($meta as $key => $_) {
 }
 ?>
 <?php require __DIR__ . '/includes/mobile_top.php'; ?>
-<h1 class="history-page__heading" style="margin-block:0;font-size:clamp(21px,2vw,27px);font-weight:800"><span class="history-page__desktop-title">Riwayat ASN</span><span class="history-page__mobile-title">Data Riwayat ASN</span></h1>
-<p class="page__sub history-page__subtitle"><span class="history-page__desktop-title">Data bersumber dari SIMPEG dan tersinkron dengan BKN.</span><span class="history-page__mobile-title">Bersumber dari SIMPEG &amp; terverifikasi BKN</span></p>
+<h1 class="history-page__heading rw-h1"><span class="history-page__desktop-title">Riwayat ASN</span><span class="history-page__mobile-title">Data Riwayat ASN</span></h1>
+<p class="page__sub history-page__subtitle rw-sub-h1">Bersumber dari SIMPEG &amp; tersinkron dengan SIASN BKN</p>
 <link rel="stylesheet" href="<?= url('assets/css/riwayat.css') ?>?v=<?= (int)@filemtime(__DIR__ . '/assets/css/riwayat.css') ?>">
 <?php if (can('absensi.view')): ?>
 <div class="history-page__actions">
@@ -89,77 +89,86 @@ foreach ($meta as $key => $_) {
 </section>
 <?php endif; ?>
 
-<div class="grid grid--tiles<?= $aktif ? ' rw-tiles--ada-aktif' : '' ?>">
-  <?php if ($pegawai): ?>
-    <a class="tile<?= $aktif === 'identitas' ? ' rw-tile--aktif' : '' ?>" href="<?= url('riwayat.php?kategori=identitas') ?>" style="<?= $aktif === 'identitas' ? 'border-color:var(--rose)' : '' ?>"<?= $aktif === 'identitas' ? ' aria-current="page"' : '' ?>>
-      <span class="tile__ico ico--tosca"><i class="bi bi-person-vcard-fill"></i></span>
-      <span class="tile__txt"><strong>Identitas</strong><small>Data utama & kepegawaian</small></span>
-      <i class="bi bi-chevron-right history-page__arrow" aria-hidden="true"></i>
-    </a>
+<?php
+// Navigasi kategori: desktop = daftar di kiri (konten di kanan), mobile = grid ikon seperti aplikasi (Gojek/MyTelkomsel).
+// Tanpa ?kategori: desktop membuka Identitas, mobile menampilkan grid ikon dulu.
+$awal = $aktif === null && $pegawai;
+if ($awal) $aktif = 'identitas';
+$navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'tosca']] + $meta : [];
+?>
+<div class="rw-layout<?= $awal ? ' rw-layout--awal' : '' ?>">
+  <?php if ($navItems): ?>
+  <nav class="rw-nav" aria-label="Kategori riwayat">
+    <?php foreach ($navItems as $key => [$label, $icon, $warna]):
+        $r = array_key_exists($key, $data) ? $data[$key] : []; $menungguKat = $usulanMenunggu[$key] ?? 0; ?>
+      <a class="rw-nav__item<?= $aktif === $key ? ' is-aktif' : '' ?>" href="<?= url('riwayat.php?kategori=' . $key) ?>"<?= $aktif === $key ? ' aria-current="page"' : '' ?>>
+        <span class="rw-nav__ico ico--<?= e($warna) ?>"><i class="bi <?= e($icon) ?>"></i><?php if ($menungguKat): ?><b class="rw-nav__dot" title="<?= (int)$menungguKat ?> usulan diproses"></b><?php endif; ?></span>
+        <span class="rw-nav__label"><?= e(preg_replace('/^Riwayat /', '', $label)) ?></span>
+        <?php if ($key !== 'identitas'): ?><span class="rw-nav__num<?= $r === null ? ' is-gagal' : '' ?>"><?= $r === null ? '!' : count($r) ?></span><?php endif; ?>
+      </a>
+    <?php endforeach; ?>
+  </nav>
   <?php endif; ?>
-  <?php foreach ($meta as $key => [$label, $icon, $warna]):
-      $r = $data[$key]; ?>
-    <a class="tile<?= $aktif === $key ? ' rw-tile--aktif' : '' ?>" href="<?= url('riwayat.php?kategori=' . $key) ?>" style="<?= $aktif === $key ? 'border-color:var(--rose)' : '' ?>"<?= $aktif === $key ? ' aria-current="page"' : '' ?>>
-      <span class="tile__ico ico--<?= $warna ?>"><i class="bi <?= $icon ?>"></i></span>
-      <span class="tile__txt">
-        <strong><?= e($label) ?></strong>
-        <small><?= $r === null ? 'Data belum dapat dimuat' : ($r && $r[0]['waktu'] !== '' ? 'Terakhir: ' . e($r[0]['waktu']) : ($r ? 'Lihat rincian' : 'Belum ada data')) ?></small>
-        <?php if (($usulanMenunggu[$key] ?? 0) > 0): ?><small class="rw-tile__usul"><i class="bi bi-hourglass-split"></i> <?= (int)$usulanMenunggu[$key] ?> usulan diproses</small><?php endif; ?>
-      </span>
-      <span class="tile__num"><?= $r === null ? '!' : count($r) ?></span>
-      <i class="bi bi-chevron-right history-page__arrow" aria-hidden="true"></i>
-    </a>
-  <?php endforeach; ?>
-</div>
 
-<?php if ($aktif === 'identitas'): $idt = riwayat_identitas($pegawai, $segar); ?>
-<a class="rw-kembali" href="<?= url('riwayat.php') ?>"><i class="bi bi-arrow-left"></i> Semua kategori</a>
-<section class="card rw-panel" style="margin-top:14px" id="rw-panel">
+  <div class="rw-main">
+<?php if (!$pegawai): ?>
+<?php elseif ($aktif === 'identitas'): $idt = riwayat_identitas($pegawai, $segar); ?>
+<a class="rw-kembali" href="<?= url('riwayat.php') ?>"><i class="bi bi-arrow-left"></i> Kategori</a>
+<section class="rw-panel" id="rw-panel">
   <div class="rw-panel__head">
-    <div class="rw-panel__title">
-      <span class="rw-panel__ico ico--tosca"><i class="bi bi-person-vcard-fill"></i></span>
-      <div><h2>Identitas</h2><small>Data utama dari SIMPEG (SIASN BKN)</small></div>
-    </div>
+    <div class="rw-panel__title"><h2>Identitas</h2><small>Data utama SIMPEG · SIASN BKN</small></div>
     <div class="rw-toolbar" role="toolbar" aria-label="Aksi identitas">
-      <?php if (can('absensi.view')): ?><button type="button" class="rw-btn rw-btn--ghost" data-rw="segarkan"><i class="bi bi-arrow-repeat"></i><span>Sync SIASN</span></button><?php endif; ?>
+      <?php if (can('absensi.view')): ?><button type="button" class="rw-pill" data-rw="segarkan"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button><?php endif; ?>
+      <?php if ($idt && $idt['ubahSiap']): ?><button type="button" class="rw-pill rw-pill--utama" data-rw="ubah-identitas"><i class="bi bi-pencil"></i><span>Ubah</span></button><?php endif; ?>
     </div>
   </div>
   <?php if ($idt === null): ?>
     <div class="rw-empty rw-empty--gagal"><i class="bi bi-cloud-slash"></i><p>Identitas belum dapat dimuat dari SIMPEG<?= isset($GLOBALS['riwayat_api_kode']) ? ' (kode ' . (int)$GLOBALS['riwayat_api_kode'] . ')' : '' ?>.</p></div>
-  <?php else: ?>
+  <?php else: $ub = $idt['ubah']; ?>
     <div class="rw-idt">
       <div class="rw-idt__head">
         <img src="<?= e($u['foto'] ? url('foto_saya.php') . '?v=' . substr(md5((string)$u['foto']), 0, 10) : url('lama/assets/images/user.png')) ?>" onerror="this.onerror=null;this.src='<?= e(url('lama/assets/images/user.png')) ?>'" alt="">
         <div><strong><?= e($idt['nama']) ?></strong><span><?= e($idt['nip']) ?></span></div>
       </div>
-      <div class="rw-idt__grid">
-        <?php foreach ($idt['kelompok'] as $judul => $baris): ?>
-          <section class="rw-idt__grup">
-            <h3><?= e($judul) ?></h3>
-            <dl class="rw-rows">
-              <?php foreach ($baris as [$lbl, $nilai, $ik]): ?>
-                <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai) ?></dd></div>
-              <?php endforeach; ?>
-            </dl>
-          </section>
-        <?php endforeach; ?>
-      </div>
+      <section class="rw-grup">
+        <h3><i class="bi bi-pencil-square"></i> Data yang dapat diubah</h3>
+        <dl class="rw-rows">
+          <?php foreach ([['Agama', $ub['agama'], 'bi-moon-stars'], ['Status perkawinan', $ub['kawin'], 'bi-heart'], ['Golongan darah', $ub['golDarah'], 'bi-droplet'],
+                          ['Tempat lahir', $ub['tempatLahir'], 'bi-geo-alt'], ['Nomor HP', $ub['noHp'], 'bi-phone'], ['Email pribadi', $ub['email'], 'bi-envelope'],
+                          ['Email dinas', $ub['emailGov'], 'bi-envelope-at'], ['Alamat', $ub['alamat'], 'bi-house']] as [$lbl, $nilai, $ik]): ?>
+            <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai !== '' ? $nilai : '–') ?></dd></div>
+          <?php endforeach; ?>
+        </dl>
+        <?php if (!$idt['ubahSiap']): ?><p class="rw-catatan">Pengubahan aktif setelah API TEMANKU (Go) diperbarui.</p><?php endif; ?>
+      </section>
+      <?php foreach ($idt['kelompok'] as $judul => $barisIdt): ?>
+        <section class="rw-grup">
+          <h3><i class="bi bi-lock"></i> <?= e($judul) ?> <span class="rw-tag">SIASN</span></h3>
+          <dl class="rw-rows">
+            <?php foreach ($barisIdt as [$lbl, $nilai, $ik]): ?>
+              <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai) ?></dd></div>
+            <?php endforeach; ?>
+          </dl>
+        </section>
+      <?php endforeach; ?>
     </div>
   <?php endif; ?>
-  <p class="riwayat-catatan rw-catatan"><i class="bi bi-info-circle"></i> Perbaikan identitas (NIK, alamat, kontak, status perkawinan) dilakukan melalui admin OPD atau MyASN BKN. Gunakan <b>Sync SIASN</b> untuk menarik data terbaru dari BKN.</p>
 </section>
-<script>window.RIWAYAT_CFG = <?= json_encode(['aksiUrl' => url('riwayat_aksi.php'), 'kategori' => 'identitas'], JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+<form id="rw-csrf" hidden><?= csrf_field() ?></form>
+<script>window.RIWAYAT_CFG = <?= json_encode(['aksiUrl' => url('riwayat_aksi.php'), 'halamanUrl' => url('riwayat.php'), 'kategori' => 'identitas',
+    'idt' => $idt ? $idt['ubah'] : null, 'kawin' => RIWAYAT_REF_KAWIN, 'golDarah' => RIWAYAT_REF_GOL_DARAH, 'idtBkn' => RIWAYAT_IDT_BKN],
+    JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
 
-<?php elseif ($aktif):
+<?php else:
     $detail = $data[$aktif];
     $jenisKat = RIWAYAT_KATEGORI_JENIS[$aktif] ?? [];
     $izin = [];
     foreach ($jenisKat as $j) $izin[$j] = riwayat_izin_jenis($j);
     $bisaTambah = array_keys(array_filter($izin, static function (array $i): bool { return $i['tambah']; }));
-    $usulanKat = array_values(array_map('riwayat_usulan_publik', array_filter($usulanSemua ?? [], static function (array $u) use ($jenisKat): bool {
-        return in_array($u['jenis'] ?? '', $jenisKat, true);
+    $usulanKat = array_values(array_map('riwayat_usulan_publik', array_filter($usulanSemua ?? [], static function (array $x) use ($jenisKat): bool {
+        return in_array($x['jenis'] ?? '', $jenisKat, true);
     })));
-    // Usulan ubah/hapus yang masih diproses per riwayat (tombol Edit/Hapus diganti "Lihat usulan").
+    // Usulan ubah/hapus yang masih diproses per riwayat (Edit/Hapus diganti "Lihat usulan").
     $usulPerRef = [];
     foreach ($usulanKat as $us) {   // bukan $u: $u = pegawai aktif dari header.php
         if ($us['ref_id'] !== '' && in_array($us['status'], RIWAYAT_STATUS_UBAH, true)) $usulPerRef[$us['jenis'] . ':' . $us['ref_id']] = $us['id'];
@@ -183,44 +192,38 @@ foreach ($meta as $key => $_) {
     ];
     $menunggu = $usulanMenunggu[$aktif] ?? 0;
 ?>
-<a class="rw-kembali" href="<?= url('riwayat.php') ?>"><i class="bi bi-arrow-left"></i> Semua kategori</a>
-<section class="card rw-panel" style="margin-top:14px" id="rw-panel">
+<a class="rw-kembali" href="<?= url('riwayat.php') ?>"><i class="bi bi-arrow-left"></i> Kategori</a>
+<section class="rw-panel" id="rw-panel">
   <div class="rw-panel__head">
     <div class="rw-panel__title">
-      <span class="rw-panel__ico ico--<?= e($meta[$aktif][2]) ?>"><i class="bi <?= e($meta[$aktif][1]) ?>"></i></span>
-      <div>
-        <h2><?= e($meta[$aktif][0]) ?></h2>
-        <small><?= $detail === null ? 'Gagal dimuat' : count($detail) . ' riwayat' ?><?= $menunggu ? ' · ' . (int)$menunggu . ' usulan diproses' : '' ?></small>
-      </div>
+      <h2><?= e($meta[$aktif][0]) ?></h2>
+      <small><?= $detail === null ? 'Gagal dimuat' : count($detail) . ' riwayat' ?><?= $menunggu ? ' · ' . (int)$menunggu . ' usulan diproses' : '' ?></small>
     </div>
     <div class="rw-toolbar" role="toolbar" aria-label="Aksi riwayat">
-      <button type="button" class="rw-btn rw-btn--ghost" data-rw="sync"><i class="bi bi-arrow-repeat"></i><span>Sync SIASN</span></button>
-      <?php if ($bisaTambah): ?>
-        <button type="button" class="rw-btn rw-btn--primary" data-rw="tambah"><i class="bi bi-plus-lg"></i><span>Tambah</span></button>
-      <?php endif; ?>
-      <button type="button" class="rw-btn rw-btn--ghost" data-rw="usulan" aria-expanded="false" aria-controls="rw-usulan"><i class="bi bi-inboxes"></i><span>Usulan</span><?php if (count($usulanKat)): ?><b class="rw-count"><?= count($usulanKat) ?></b><?php endif; ?></button>
+      <button type="button" class="rw-pill" data-rw="sync"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button>
+      <button type="button" class="rw-pill" data-rw="usulan" aria-expanded="false" aria-controls="rw-usulan"><i class="bi bi-inboxes"></i><span>Usulan</span><?php if (count($usulanKat)): ?><b class="rw-count"><?= count($usulanKat) ?></b><?php endif; ?></button>
+      <?php if ($bisaTambah): ?><button type="button" class="rw-pill rw-pill--utama" data-rw="tambah"><i class="bi bi-plus-lg"></i><span>Tambah</span></button><?php endif; ?>
     </div>
   </div>
-
   <div class="rw-usulan" id="rw-usulan" hidden></div>
-
-  <?php if ($detail): ?>
+  <?php if ($detail && count($detail) > 5): ?>
   <div class="rw-cari-bar">
     <label class="rw-cari-bar__input"><i class="bi bi-search"></i><input type="search" id="rw-cari" placeholder="Cari <?= e(strtolower($meta[$aktif][0])) ?>…" autocomplete="off" aria-label="Cari riwayat"></label>
-    <label class="rw-cari-bar__per"><span>Tampil</span><select id="rw-per" aria-label="Jumlah per halaman"><option>10</option><option>25</option><option>50</option></select></label>
+    <select id="rw-per" aria-label="Jumlah per halaman"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
   </div>
   <?php endif; ?>
   <div class="rw-list" id="rw-list" aria-live="polite"></div>
   <nav class="rw-pager" id="rw-pager" aria-label="Halaman riwayat" hidden></nav>
   <noscript><p class="rw-catatan">Aktifkan JavaScript untuk menampilkan riwayat.</p></noscript>
-  <p class="riwayat-catatan rw-catatan"><i class="bi bi-info-circle"></i> Data riwayat bersumber dari SIMPEG (SIASN BKN). Perubahan diajukan sebagai <b>usulan</b> dan diverifikasi admin; hasilnya dikirim ke <a href="<?= url('notifikasi.php') ?>">Notifikasi</a>.<?= array_diff($jenisKat, array_keys($formKat)) ? ' ' . e($meta[$aktif][0]) . ' hanya dapat dilihat.' : '' ?></p>
+  <p class="rw-catatan"><i class="bi bi-info-circle"></i> Perubahan diajukan sebagai <b>usulan</b> dan diverifikasi admin; hasilnya muncul di <a href="<?= url('notifikasi.php') ?>">Notifikasi</a>.<?= array_diff($jenisKat, array_keys($formKat)) ? ' ' . e($meta[$aktif][0]) . ' hanya dapat dilihat.' : '' ?></p>
 </section>
-
 <form id="rw-csrf" hidden><?= csrf_field() ?></form>
 <script>window.RIWAYAT_CFG = <?= json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
-<?php else: ?>
-<script>window.RIWAYAT_CFG = <?= json_encode(['aksiUrl' => url('riwayat_aksi.php')], JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <?php endif; ?>
+  </div>
+</div>
+<?php if (!$pegawai): ?><script>window.RIWAYAT_CFG = <?= json_encode(['aksiUrl' => url('riwayat_aksi.php')], JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script><?php endif; ?>
+<div class="rw-badges" id="rw-badges" aria-live="polite"></div>
 
 <!-- Popup umum / drawer (detail, form, konfirmasi), viewer PDF (pdf.js) & pemindai dokumen -->
 <div class="rw-modal" id="rw-modal" hidden>

@@ -507,3 +507,91 @@ function riwayat_sync_dok(array $pegawai, string $kategori, int $idx): array
     unset($_SESSION['riwayat_cache'][$pegawai['pns_id'] . ':' . $kategori]);
     return ['success' => true, 'message' => $d['label'] . ' – ' . $d['kolom'] . ': ' . $ket];
 }
+
+/** Label kolom dokumen hasil sync (tahap 2). */
+const RIWAYAT_SYNC_DOK_LABEL = [
+    'ijazah' => 'Ijazah', 'transkrip' => 'Transkrip', 'pertek' => 'Pertek', 'sk' => 'SK', 'lantik' => 'Pelantikan',
+    'sk_mutasi' => 'SK mutasi', 'sertifikat' => 'Sertifikat', 'skp' => 'Dokumen SKP', 'dok_pak' => 'Dokumen PAK', 'sk_pak' => 'SK PAK',
+    'sk_cpns' => 'SK CPNS', 'sk_pns' => 'SK PNS', 'spmt' => 'SPMT', 'akta' => 'Buku/akta nikah',
+];
+
+/** Daftar dokumen SIASN dari tahap 1 untuk dipilih di tahap 2: [idx, label, dokumen, sudah ditarik]. */
+function riwayat_sync_dok_daftar(array $pegawai, string $kategori): ?array
+{
+    $simpan = $_SESSION['riwayat_sync_dok'][$kategori] ?? null;
+    if (!is_array($simpan) || ($simpan['pns_id'] ?? '') !== $pegawai['pns_id']) return null;
+    $map = riwayat_dokmap();
+    $out = [];
+    foreach ($simpan['docs'] as $i => $d) {
+        $out[] = ['idx' => $i, 'label' => (string)$d['label'], 'dokumen' => RIWAYAT_SYNC_DOK_LABEL[$d['kolom']] ?? $d['kolom'],
+            'sudah' => preg_match(RIWAYAT_POLA_REPO, (string)($map[sha1($d['uri'])] ?? '')) === 1];
+    }
+    return $out;
+}
+
+/**
+ * Kirim perubahan identitas ke SIASN (POST /pns/data-utama-update), port sl_bkn_update_data_utama SIMPEG.
+ * Kolom yang tidak diubah diisi dari data SIASN saat ini supaya tidak terkosongkan.
+ * @param array $ubah kunci SIMPEG: agamaId, tempatLahirId, alamat, noHp, email, emailGov
+ * @return array{status:string, message:string, offline?:bool}
+ */
+function riwayat_bkn_ubah_data_utama(array $pegawai, array $ubah): array
+{
+    $tok = rs_token();
+    if ($tok === null) return ['status' => 'failed', 'offline' => true, 'message' => 'API BKN tidak terhubung; perubahan belum dikirim ke SIASN'];
+    $r = rs_bkn_get('/pns/data-utama/' . rawurlencode($pegawai['nip']), $tok);
+    $cur = is_array($r['json']['data'] ?? null) ? $r['json']['data'] : null;
+    if ($cur === null) return ['status' => 'failed', 'offline' => $r['kode'] === 0 || $r['kode'] >= 500, 'message' => 'Data SIASN saat ini tidak dapat dibaca; perubahan tidak dikirim ke BKN'];
+    if (rs_txt($cur['id'] ?? '') !== $pegawai['pns_id']) return ['status' => 'failed', 'message' => 'ID SIASN tidak cocok dengan akun Anda; perubahan tidak dikirim ke BKN'];
+    $pick = static function (array $keys) use ($cur): string {
+        foreach ($keys as $k) {
+            $v = isset($cur[$k]) && is_scalar($cur[$k]) ? trim((string)$cur[$k]) : '';
+            if ($v !== '' && $v !== 'null' && $v !== '-') return $v;
+        }
+        return '';
+    };
+    $nilai = static function (string $k, array $siasn) use ($ubah, $pick): string {
+        return array_key_exists($k, $ubah) ? (string)$ubah[$k] : $pick($siasn);
+    };
+    $payload = [
+        'pns_orang_id' => $pegawai['pns_id'],
+        'agama_id' => $nilai('agamaId', ['agamaId']), 'kabupaten_id' => $nilai('tempatLahirId', ['tempatLahirId']),
+        'alamat' => $nilai('alamat', ['alamat']), 'email' => $nilai('email', ['email']), 'email_gov' => $nilai('emailGov', ['emailGov']),
+        'nomor_hp' => $nilai('noHp', ['noHp']), 'nomor_telpon' => $pick(['noTelp']),
+        'nomor_bpjs' => $pick(['bpjs', 'noAskes']), 'npwp_nomor' => $pick(['noNpwp']), 'npwp_tanggal' => $pick(['tglNpwp']),
+        'taspen_nomor' => $pick(['noTaspen']), 'tanggal_taspen' => $pick(['tanggal_taspen', 'tglTaspen']), 'karis_karsu' => $pick(['karis_karsu']),
+        'kpkn_id' => $pick(['kpknId']), 'lokasi_kerja_id' => $pick(['lokasiKerjaId']), 'kelas_jabatan' => $pick(['kelas_jabatan']),
+        'tapera_nomor' => $pick(['noTapera', 'taperaNomor']),
+    ];
+    if (in_array($payload['nomor_telpon'], ['', '0'], true)) $payload['nomor_telpon'] = $payload['nomor_hp'];
+    foreach (['npwp_tanggal', 'tanggal_taspen'] as $tg) {
+        if (in_array($payload[$tg], ['01-01-0001', '0001-01-01'], true)) $payload[$tg] = '';
+    }
+    $peta = ['agama_id' => 'agamaId', 'kabupaten_id' => 'tempatLahirId', 'alamat' => 'alamat', 'email' => 'email', 'email_gov' => 'emailGov', 'nomor_hp' => 'noHp'];
+    foreach ($payload as $k => $v) {
+        if ($v === '' && $k !== 'pns_orang_id' && !(isset($peta[$k]) && array_key_exists($peta[$k], $ubah))) unset($payload[$k]);
+    }
+    $ch = curl_init(siasn_api_base() . '/pns/data-utama-update');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => array_merge(siasn_rest_headers($tok['login'], $tok['ws']), ['Content-Type: application/json']),
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_FOLLOWLOCATION => false,
+    ]);
+    $res = curl_exec($ch);
+    $kode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($kode === 0 || $kode >= 500) return ['status' => 'failed', 'offline' => true, 'message' => 'Server BKN tidak terhubung saat mengirim perubahan'];
+    $j = is_string($res) ? json_decode($res, true) : null;
+    error_log('TEMANKU data-utama-update pns=' . $pegawai['pns_id'] . ' http=' . $kode . ' resp=' . substr((string)$res, 0, 300));
+    $msg = is_array($j) ? rs_cut(rs_txt($j['message'] ?? ($j['error'] ?? '')), 200) : '';
+    $ok = $kode >= 200 && $kode < 300 && is_array($j) && !(isset($j['success']) && $j['success'] === false) && empty($j['error'])
+        && !(isset($j['code']) && !in_array((string)$j['code'], ['1', '200', 'success', 'SUCCESS'], true));
+    return $ok ? ['status' => 'success', 'message' => $msg !== '' ? $msg : 'Perubahan terkirim ke SIASN BKN']
+        : ['status' => 'failed', 'message' => 'SIASN menolak perubahan' . ($msg !== '' ? ': ' . $msg : ' (HTTP ' . $kode . ')')];
+}

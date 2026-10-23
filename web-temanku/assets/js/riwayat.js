@@ -1,10 +1,11 @@
 /*
  * Halaman Riwayat ASN (TEMANKU)
- *  - daftar riwayat berupa kartu (desktop & mobile) dengan pencarian dan halaman (page)
+ *  - daftar riwayat ringkas (baris ala Gojek/MyTelkomsel) dengan pencarian dan halaman (page); klik baris = detail
  *  - drawer "Lihat" di kanan (desktop) / bottom-sheet (mobile) seperti MyASN; dokumen dipratinjau dengan pdf.js
  *    (desktop: tab bila lebih dari satu PDF, mobile: akordeon yang membuka pratinjau ke bawah)
  *  - usulan tambah / edit / hapus dengan pratinjau PDF unggahan & fitur pindai dokumen (kamera -> PDF, jsPDF)
- *  - daftar usulan, sync SIASN (data lalu dokumen satu per satu)
+ *  - daftar usulan, sync SIASN 2 langkah (data, lalu pilih dokumen yang ditarik) dengan badge hasil
+ *  - identitas: ubah data seperti SIMPEG (opsional kirim ke SIASN BKN)
  * Semua teks dari server dipasang lewat textContent (aman dari HTML).
  */
 (function () {
@@ -131,7 +132,7 @@
   function bukaModal(judul, isi, kaki, opsi) {
     opsi = opsi || {};
     if (modalEl.hidden) fokusSebelum = document.activeElement;
-    modalEl.className = 'rw-modal' + (opsi.drawer ? ' rw-modal--drawer' : '') + (opsi.lebar ? ' rw-modal--lebar' : '');
+    modalEl.className = 'rw-modal' + (opsi.drawer ? ' rw-modal--drawer' : '') + (opsi.lebar ? ' rw-modal--lebar' : '') + (opsi.kelas ? ' ' + opsi.kelas : '');
     $('#rw-modal-title').textContent = judul;
     var body = $('#rw-modal-body'), foot = $('#rw-modal-foot');
     body.replaceChildren(isi);
@@ -323,14 +324,218 @@
     return wrap;
   }
 
+  /* ---------- badge hasil (kanan atas; bertahan melewati muat ulang halaman) ---------- */
+  var BADGE_KEY = 'rw-badges';
+  function badge(judul, ket, ok, simpan) {
+    if (simpan) {
+      try { var a = JSON.parse(sessionStorage.getItem(BADGE_KEY) || '[]'); a.push([judul, ket, ok]); sessionStorage.setItem(BADGE_KEY, JSON.stringify(a.slice(-4))); } catch (e) { /* abaikan */ }
+      return;
+    }
+    var w = $('#rw-badges'); if (!w) return;
+    var b = el('div', 'rw-badge rw-badge--' + (ok ? 'ok' : 'gagal')); b.setAttribute('role', 'status');
+    var t = el('div'); t.append(el('strong', '', judul)); if (ket) t.append(el('small', '', ket));
+    b.append(el('span', 'rw-badge__ikon', ok ? '✓' : '!'), t);
+    b.addEventListener('click', function () { b.remove(); });
+    w.append(b);
+    setTimeout(function () { b.classList.add('rw-badge--hilang'); setTimeout(function () { b.remove(); }, 350); }, ok ? 6500 : 10000);
+  }
+  try {
+    JSON.parse(sessionStorage.getItem(BADGE_KEY) || '[]').forEach(function (x, i) { setTimeout(function () { badge(x[0], x[1], x[2]); }, 150 * i); });
+    sessionStorage.removeItem(BADGE_KEY);
+  } catch (e) { /* abaikan */ }
+
+  /** Status API SIMPEG & BKN untuk dialog (chip dua titik). */
+  function koneksi(segar) {
+    var w = el('div', 'rw-sync__koneksi');
+    var s = { simpeg: el('span', '', 'SIMPEG'), bkn: el('span', '', 'BKN') };
+    w.append(s.simpeg, s.bkn);
+    var janji = get({ aksi: 'status', segar: segar ? '1' : '0' }).then(function (j) {
+      ['simpeg', 'bkn'].forEach(function (k) { s[k].className = (j[k] || {}).ok ? 'is-ok' : 'is-gagal'; s[k].title = (j[k] || {}).ok ? 'Terhubung' : 'Tidak terhubung'; });
+      document.dispatchEvent(new CustomEvent('api-status', { detail: j }));
+      return j;
+    }).catch(function () { s.simpeg.className = s.bkn.className = 'is-gagal'; return {}; });
+    return { el: w, janji: janji };
+  }
+
   if (!CFG.kategori) return;
 
-  /* ---------- identitas: sync memakai langkah "Segarkan data" ---------- */
+  /* ---------- identitas: Sync = "Segarkan data"; Ubah = form seperti SIMPEG ---------- */
   if (CFG.kategori === 'identitas') {
+    var IDT = CFG.idt || {};
+    function bukaUbahIdentitas() {
+      var form = el('form', 'rw-form'); form.noValidate = true;
+      var awal = {};
+      function f(k, label, inp, opsi) {
+        opsi = opsi || {};
+        var w = el('div', 'rw-f' + (opsi.penuh ? ' rw-f--penuh' : '')); w.dataset.k = k;
+        var sasaran = opsi.untuk || inp, lb = el('label', '', label);
+        if (!sasaran.id) sasaran.id = 'rw-idt-' + k;
+        lb.htmlFor = sasaran.id;
+        if (CFG.idtBkn.indexOf(k) >= 0) { var b = tag('BKN', 'biru'); b.title = 'Ikut dikirim ke SIASN BKN bila dicentang'; lb.append(' ', b); }
+        w.append(lb, inp);
+        if (opsi.ket) w.append(el('small', '', opsi.ket));
+        form.append(w);
+        return w;
+      }
+      function teks(k, label, tipe, ph, opsi) {
+        var i = el(tipe === 'textarea' ? 'textarea' : 'input');
+        if (tipe !== 'textarea') i.type = tipe; else i.rows = 3;
+        i.name = k; i.value = IDT[k] || ''; i.placeholder = ph || ''; i.autocomplete = 'off';
+        if (opsi && opsi.max) i.maxLength = opsi.max;
+        awal[k] = i.value;
+        return f(k, label, i, opsi);
+      }
+      // agama (referensi)
+      var sAg = el('select'); sAg.name = 'agamaId';
+      var opA = el('option', '', IDT.agama || 'Memuat…'); opA.value = IDT.agamaId || ''; sAg.append(opA);
+      awal.agamaId = String(IDT.agamaId || '');
+      f('agamaId', 'Agama', sAg);
+      get({ aksi: 'ref', nama: 'agama' }).then(function (j) {
+        sAg.replaceChildren();
+        var o0 = el('option', '', '— Pilih agama —'); o0.value = ''; sAg.append(o0);
+        (j.data || []).forEach(function (x) { var o = el('option', '', x.nama); o.value = x.id; sAg.append(o); });
+        sAg.value = awal.agamaId;
+        if (sAg.value !== awal.agamaId) { var o = el('option', '', IDT.agama || awal.agamaId); o.value = awal.agamaId; sAg.append(o); sAg.value = awal.agamaId; }
+      }).catch(function () { /* tetap pakai nilai saat ini */ });
+      // status perkawinan
+      var sK = el('select'); sK.name = 'jenisKawinId';
+      var k0 = el('option', '', '— Pilih —'); k0.value = ''; sK.append(k0);
+      Object.keys(CFG.kawin || {}).forEach(function (id) { var o = el('option', '', CFG.kawin[id]); o.value = id; sK.append(o); });
+      sK.value = String(IDT.jenisKawinId || ''); awal.jenisKawinId = sK.value;
+      f('jenisKawinId', 'Status perkawinan', sK);
+      // golongan darah: segmented
+      var seg = el('div', 'rw-seg'); seg.setAttribute('role', 'radiogroup'); seg.id = 'rw-idt-golDarah';
+      awal.golDarah = String(IDT.golDarah || '').toUpperCase();
+      (CFG.golDarah || []).concat(['']).forEach(function (g) {
+        var lb = el('label'), r = el('input'); r.type = 'radio'; r.name = 'golDarah'; r.value = g; r.checked = g === awal.golDarah;
+        lb.append(r, el('span', '', g || '–')); seg.append(lb);
+      });
+      var wG = f('golDarah', 'Golongan darah', seg, { penuh: true });
+      $('label', wG).removeAttribute('for');
+      // tempat lahir: pencarian kabupaten/kota
+      var cari = el('div', 'rw-cari');
+      var vis = el('input'); vis.type = 'text'; vis.id = 'rw-idt-tempatLahirId'; vis.value = IDT.tempatLahir || ''; vis.placeholder = 'Ketik nama kabupaten / kota…'; vis.autocomplete = 'off';
+      var hid = el('input'); hid.type = 'hidden'; hid.name = 'tempatLahirId'; hid.value = IDT.tempatLahirId || ''; awal.tempatLahirId = hid.value;
+      var ul = el('ul', 'rw-cari__list'); ul.hidden = true; ul.setAttribute('role', 'listbox');
+      cari.append(vis, hid, ul);
+      f('tempatLahirId', 'Tempat lahir', cari, { untuk: vis, ket: 'Pilih dari daftar kabupaten/kota SIASN.' });
+      var tm, aktifI = -1;
+      vis.addEventListener('input', function () {
+        hid.value = ''; clearTimeout(tm);
+        var q = vis.value.trim();
+        if (q.length < 2) { ul.hidden = true; return; }
+        tm = setTimeout(function () {
+          get({ aksi: 'ref', nama: 'wilayah', q: q }).then(function (j) {
+            ul.replaceChildren(); aktifI = -1;
+            (j.data || []).forEach(function (x) {
+              var li = el('li', '', x.nama); li.setAttribute('role', 'option'); li._x = x;
+              li.addEventListener('mousedown', function (e) { e.preventDefault(); pilihT(x); });
+              ul.append(li);
+            });
+            if (!ul.childNodes.length) ul.append(el('li', 'rw-muted', 'Tidak ditemukan'));
+            ul.hidden = false;
+          }).catch(function () { ul.hidden = true; });
+        }, 250);
+      });
+      function pilihT(x) { vis.value = x.nama; hid.value = x.id; ul.hidden = true; hid.dispatchEvent(new Event('change', { bubbles: true })); }
+      vis.addEventListener('keydown', function (e) {
+        var li = $$('li', ul).filter(function (x) { return x._x; });
+        if (ul.hidden || !li.length) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault(); aktifI = (aktifI + (e.key === 'ArrowDown' ? 1 : -1) + li.length) % li.length;
+          li.forEach(function (x, i) { x.classList.toggle('is-aktif', i === aktifI); });
+        } else if (e.key === 'Enter' && aktifI >= 0) { e.preventDefault(); pilihT(li[aktifI]._x); }
+      });
+      vis.addEventListener('blur', function () { setTimeout(function () { ul.hidden = true; if (!hid.value) { vis.value = IDT.tempatLahir || ''; hid.value = awal.tempatLahirId; } }, 150); });
+
+      teks('noHp', 'Nomor HP', 'tel', '081234567890', { max: 20 });
+      teks('email', 'Email pribadi', 'email', 'nama@contoh.com', { max: 100 });
+      teks('emailGov', 'Email dinas', 'email', 'nama@kepulauanselayarkab.go.id', { max: 100, ket: 'Harus berdomain .go.id' });
+      teks('alamat', 'Alamat', 'textarea', 'Alamat lengkap', { max: 500, penuh: true });
+
+      // kirim ke BKN (tampil bila ada kolom BKN yang berubah)
+      var bknW = el('div', 'rw-f rw-f--penuh'); bknW.hidden = true;
+      var bknBox = el('div', 'rw-info rw-info--biru');
+      var cbL = el('label', 'rw-check'); cbL.style.padding = '0';
+      var cb = el('input'); cb.type = 'checkbox'; cb.checked = true; cb.id = 'rw-idt-bkn';
+      var cbT = el('span', '', 'Kirim juga perubahan ke SIASN BKN');
+      cbL.append(cb, cbT); bknBox.append(cbL);
+      var kon = null;
+      bknW.append(bknBox); form.append(bknW);
+
+      function nilai() {
+        var v = {};
+        $$('input[name],select[name],textarea[name]', form).forEach(function (i) {
+          if (i.type === 'radio') { if (i.checked) v[i.name] = i.value; return; }
+          v[i.name] = i.value.trim();
+        });
+        if (!('golDarah' in v)) v.golDarah = '';
+        return v;
+      }
+      function beda() {
+        var v = nilai(), d = {};
+        Object.keys(v).forEach(function (k) { if (String(v[k]) !== String(awal[k] === undefined ? '' : awal[k])) d[k] = v[k]; });
+        if ('tempatLahirId' in d && !d.tempatLahirId) delete d.tempatLahirId;
+        return d;
+      }
+      function segar() {
+        var d = beda();
+        $$('[name]', form).forEach(function (i) { if (i.type !== 'radio' && i.type !== 'hidden') i.classList.toggle('is-ubah', i.name in d); });
+        vis.classList.toggle('is-ubah', 'tempatLahirId' in d);
+        var adaBkn = Object.keys(d).some(function (k) { return CFG.idtBkn.indexOf(k) >= 0; });
+        bknW.hidden = !adaBkn;
+        if (adaBkn && !kon) {
+          kon = koneksi(false); bknBox.append(kon.el);
+          kon.janji.then(function (j) { if (!(j.bkn || {}).ok) { cb.checked = false; cbT.textContent = 'Kirim juga ke SIASN BKN (API BKN sedang tidak terhubung)'; } });
+        }
+        simpan.disabled = !Object.keys(d).length;
+      }
+      form.addEventListener('input', function (e) { var w = e.target.closest('.rw-f'); if (w) { w.classList.remove('is-error'); $$('.rw-f__err', w).forEach(function (x) { x.remove(); }); } segar(); });
+      form.addEventListener('change', segar);
+
+      var simpan = tombol('Simpan', 'rw-btn--primary', 'bi-check2');
+      simpan.disabled = true;
+      function jalan(e) {
+        if (e) e.preventDefault();
+        var d = beda();
+        if (!Object.keys(d).length) return;
+        var fd = fdBaru('identitas_simpan');
+        Object.keys(d).forEach(function (k) { fd.set(k, d[k]); });
+        if (!bknW.hidden && cb.checked) fd.set('kirim_bkn', '1');
+        sibuk(true, simpan, 'Menyimpan…');
+        post(fd).then(function (j) {
+          modalSibuk = false;
+          badge('Identitas tersimpan di SIMPEG', j.message, true, true);
+          if (j.bkn && j.bkn.status !== 'skip') badge(j.bkn.status === 'success' ? 'Terkirim ke SIASN BKN' : 'Belum terkirim ke SIASN BKN', j.bkn.message, j.bkn.status === 'success', true);
+          else if (j.bkn && j.bkn.message) badge('Hanya disimpan di SIMPEG', j.bkn.message, true, true);
+          muatUlang();
+        }).catch(function (err) {
+          sibuk(false, simpan);
+          var errs = (err.data && err.data.errors) || {};
+          if (err.data && err.data.field && !errs[err.data.field]) errs[err.data.field] = err.message;
+          Object.keys(errs).forEach(function (k) {
+            var w = $('.rw-f[data-k="' + k + '"]', form); if (!w) return;
+            w.classList.add('is-error'); $$('.rw-f__err', w).forEach(function (x) { x.remove(); });
+            w.append(el('small', 'rw-f__err', errs[k]));
+          });
+          var pertama = $('.rw-f.is-error input:not([type=hidden]),.rw-f.is-error select,.rw-f.is-error textarea', form);
+          if (pertama) pertama.focus();
+          toast(err.message, false);
+        });
+      }
+      form.addEventListener('submit', jalan);
+      simpan.addEventListener('click', jalan);
+      var box = el('div');
+      box.append(info('Perubahan langsung disimpan ke SIMPEG seperti menu Identitas SIMPEG. Isian bertanda BKN dapat ikut dikirim ke SIASN. Data lain (NIP, NIK, jabatan, unit) mengikuti SIASN.', 'biru', 'bi-info-circle'), form);
+      bukaModal('Ubah identitas', box, [tombol('Batal', '', null, tutupModal), simpan], { drawer: true });
+    }
     document.addEventListener('click', function (e) {
-      var b = e.target.closest && e.target.closest('[data-rw="segarkan"]');
+      var b = e.target.closest && e.target.closest('[data-rw]');
+      if (!b) return;
+      if (b.dataset.rw === 'ubah-identitas') { bukaUbahIdentitas(); return; }
+      if (b.dataset.rw !== 'segarkan') return;
       var form = document.getElementById('riwayat-refresh-form');
-      if (!b || !form) return;
+      if (!form) return;
       if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true }));
     });
     return;
@@ -357,48 +562,45 @@
     return r._cari;
   }
   function kartu(r) {
-    var art = el('article', 'rw-item'); art.dataset.idx = r.idx; art.tabIndex = -1;
-    var main = el('div', 'rw-item__main');
-    var ico = el('span', 'rw-item__ico ico--' + (CFG.warna || 'tosca')); ico.append(ikon(CFG.ikon || 'bi-folder'));
-    var body = el('div', 'rw-item__body');
-    var top = el('div', 'rw-item__top');
-    top.append(el('h3', '', r.judul));
-    var dt = el('span', 'rw-item__date'); dt.append(ikon('bi-calendar3'), document.createTextNode(r.waktu || '-')); top.append(dt);
-    body.append(top);
-    if (r.sub) body.append(el('p', 'rw-sub', r.sub));
-    var tags = el('div', 'rw-tags');
-    if (r.label) tags.append(tag(r.label));
-    if (r.usulan) tags.append(tag('Ada usulan diproses', 'kuning', 'bi-hourglass-split'));
-    if (tags.childNodes.length) body.append(tags);
+    var row = el('article', 'rw-row'); row.dataset.idx = r.idx; row.tabIndex = 0; row.setAttribute('role', 'button');
+    row.setAttribute('aria-label', r.judul + (r.waktu ? ', ' + r.waktu : '') + ' — lihat detail');
+    var ico = el('span', 'rw-row__ico ico--' + (CFG.warna || 'tosca')); ico.append(ikon(CFG.ikon || 'bi-folder'));
+    var body = el('div', 'rw-row__body');
+    var h = el('h3', 'rw-row__judul'); h.append(el('span', '', r.judul));
+    if (r.usulan) h.append(tag('Diproses', 'kuning', 'bi-hourglass-split'));
+    body.append(h);
+    var meta = el('div', 'rw-row__meta');
+    if (r.waktu) { var w = el('span'); w.append(ikon('bi-calendar3'), document.createTextNode(' ' + r.waktu)); meta.append(w); }
+    if (r.sub) meta.append(el('span', '', r.sub));
+    if (r.label) meta.append(tag(r.label));
+    if ((r.dok || []).length && r.id_rw) { var dk = el('span', 'rw-row__dokhp'); dk.append(ikon('bi-paperclip'), document.createTextNode(' ' + r.dok.length)); dk.title = r.dok.length + ' dokumen'; meta.append(dk); }
+    body.append(meta);
     if ((r.info || []).length) {
-      var dl = el('dl', 'rw-item__info');
-      r.info.slice(0, 4).forEach(function (p) { var d = el('div'); d.append(el('dt', '', p[0]), el('dd', '', p[1])); dl.append(d); });
-      body.append(dl);
+      var inf = el('div', 'rw-row__info');
+      r.info.slice(0, 3).forEach(function (p) { var s = el('span'); s.append(el('b', '', p[0] + ': '), document.createTextNode(p[1])); inf.append(s); });
+      body.append(inf);
     }
-    main.append(ico, body);
-    var foot = el('div', 'rw-item__foot');
-    var dok = el('div', 'rw-item__dok');
+    var kanan = el('div', 'rw-row__kanan');
     if ((r.dok || []).length && r.id_rw) {
-      r.dok.forEach(function (d) {
-        var b = el('button', 'rw-dok'); b.type = 'button'; b.dataset.rw = 'lihat'; b.dataset.idx = r.idx; b.dataset.dok = d[1];
+      var dok = el('div', 'rw-row__dok');
+      r.dok.slice(0, 3).forEach(function (d) {
+        var b = el('button', 'rw-dok'); b.type = 'button'; b.dataset.rw = 'lihat'; b.dataset.idx = r.idx; b.dataset.dok = d[1]; b.title = 'Lihat ' + d[0];
         b.append(ikon('bi-file-earmark-pdf-fill'), document.createTextNode(d[0]));
         dok.append(b);
       });
-    } else {
-      var nd = el('span', 'rw-item__nodok'); nd.append(ikon('bi-file-earmark-x'), document.createTextNode(' Belum ada dokumen')); dok.append(nd);
+      kanan.append(dok);
     }
-    var act = el('div', 'rw-item__act');
     var iz = IZIN[r.jenis] || {};
+    var act = el('div', 'rw-row__aksi');
     var mk = function (aksi, lbl, ik, cls) {
-      var b = el('button', 'rw-act' + (cls ? ' ' + cls : '')); b.type = 'button'; b.dataset.rw = aksi; b.dataset.idx = r.idx;
-      b.append(ikon(ik), el('span', '', lbl)); act.append(b);
+      var b = el('button', 'rw-ico' + (cls ? ' ' + cls : '')); b.type = 'button'; b.dataset.rw = aksi; b.dataset.idx = r.idx;
+      b.title = lbl; b.setAttribute('aria-label', lbl + ' ' + r.judul); b.append(ikon(ik)); act.append(b);
     };
-    mk('lihat', 'Lihat', 'bi-eye');
-    if (iz.ubah) mk('ubah', 'Edit', 'bi-pencil-square', 'rw-act--edit');
-    if (iz.hapus) mk('hapus', 'Hapus', 'bi-trash3', 'rw-act--hapus');
-    foot.append(dok, act);
-    art.append(main, foot);
-    return art;
+    if (iz.ubah) mk('ubah', 'Edit', 'bi-pencil');
+    if (iz.hapus) mk('hapus', 'Hapus', 'bi-trash3', 'rw-ico--hapus');
+    if (act.childNodes.length) kanan.append(act); else kanan.append(el('i', 'bi bi-chevron-right rw-row__panah'));
+    row.append(ico, body, kanan);
+    return row;
   }
   function renderDaftar() {
     if (!listEl) return;
@@ -489,7 +691,7 @@
     if (!r) return;
     var box = el('div', 'rw-detail');
     var hero = el('div', 'rw-hero');
-    var hi = el('span', 'rw-item__ico ico--' + (CFG.warna || 'tosca')); hi.append(ikon(CFG.ikon || 'bi-folder'));
+    var hi = el('span', 'rw-row__ico ico--' + (CFG.warna || 'tosca')); hi.append(ikon(CFG.ikon || 'bi-folder'));
     var ht = el('div'); ht.append(el('strong', '', r.judul));
     if (r.sub) ht.append(el('span', '', r.sub));
     var tags = el('div', 'rw-tags');
@@ -1124,61 +1326,163 @@
   }
   if (CFG.bukaUsulan) togelUsulan(true);
 
-  /* ---------- sync SIASN ---------- */
+  /* ---------- sync SIASN: langkah 1 data, langkah 2 dokumen (dipilih), seperti SIMPEG ---------- */
   function bukaSync() {
-    var box = el('div');
-    box.append(info('Riwayat ' + String(CFG.judul || '').toLowerCase() + ' Anda akan ditarik dari SIASN BKN lalu disimpan ke SIMPEG, termasuk dokumennya. Riwayat yang tidak ada lagi di SIASN akan ikut terhapus dari SIMPEG.', 'biru', 'bi-arrow-repeat'));
-    var prog = el('div', 'rw-progress'); var bar = el('span'); prog.append(bar); prog.hidden = true;
-    var langkah = el('ul', 'rw-langkah');
-    box.append(prog, langkah);
-    var mulai = tombol('Mulai sync', 'rw-btn--primary', 'bi-arrow-repeat');
-    var tutup = tombol('Batal', '', null, tutupModal);
-    var berubah = false;
-    var SIMBOL = { ok: '✓', gagal: '!', proses: '⏳' };
-    function baris(teks, st) {
-      var li = el('li', st); li.append(el('b', '', SIMBOL[st] || '•'), el('span', '', teks));
-      langkah.append(li); li.scrollIntoView({ block: 'nearest' }); return li;
+    var nama = String(CFG.judul || '').toLowerCase();
+    var box = el('div', 'rw-sync');
+    var ik = el('div', 'rw-sync__ikon'); ik.append(ikon('bi-arrow-repeat'));
+    var judul = el('h4', 'rw-sync__judul', 'Sync ' + nama + '?');
+    var teks = el('p', 'rw-sync__teks', 'Data ditarik dari SIASN BKN lalu disimpan ke SIMPEG. Riwayat yang tidak ada lagi di SIASN ikut terhapus dari SIMPEG.');
+    var kon = koneksi(true);
+    function tahap(no, j, k) {
+      var t = el('div', 'rw-tahap'), hd = el('div', 'rw-tahap__head'), tx = el('div');
+      var n = el('span', 'rw-tahap__no', String(no));
+      tx.append(el('strong', '', j), el('small', '', k));
+      hd.append(n, tx); t.append(hd);
+      var isi = el('div', 'rw-tahap__isi'); isi.hidden = true; t.append(isi);
+      return { el: t, no: n, ket: $('small', tx), isi: isi };
     }
-    function ubahBaris(li, teks, st) { li.className = st; $('b', li).textContent = SIMBOL[st]; $('span', li).textContent = teks; }
-    mulai.addEventListener('click', function () {
-      modalSibuk = true; mulai.hidden = true; tutup.disabled = true; prog.hidden = false; bar.style.width = '5%';
-      var fd = fdBaru('sync_data'); fd.set('kategori', CFG.kategori);
-      var l1 = baris('Tahap 1: menarik data dari SIASN…', 'proses');
-      post(fd).then(function (j) {
-        berubah = true;
-        ubahBaris(l1, 'Tahap 1 selesai: ' + j.message, 'ok');
-        var n = j.dokumen || 0, i = 0, gagal = 0;
-        if (!n) { bar.style.width = '100%'; return { gagal: 0 }; }
-        baris(n + ' dokumen ditemukan' + (j.dokumen_baru !== undefined ? ' (' + j.dokumen_baru + ' baru)' : '') + '. Tahap 2: menarik dokumen…', 'ok');
-        function lanjut() {
-          if (i >= n) return Promise.resolve({ gagal: gagal });
-          var li = baris('Dokumen ' + (i + 1) + ' dari ' + n + '…', 'proses');
-          var f2 = fdBaru('sync_dok'); f2.set('kategori', CFG.kategori); f2.set('idx', String(i));
-          return post(f2).then(function (r) { ubahBaris(li, r.message, 'ok'); }).catch(function (e) { gagal++; ubahBaris(li, 'Dokumen ' + (i + 1) + ': ' + e.message, 'gagal'); if (e.data && e.data.offline) { i = n; cekApi(); } })
-            .then(function () { i++; bar.style.width = Math.round(10 + 90 * Math.min(i, n) / n) + '%'; return lanjut(); });
+    var t1 = tahap(1, 'Data riwayat', 'Tarik & simpan data dari SIASN');
+    var t2 = tahap(2, 'Dokumen', 'Pilih dokumen PDF yang ditarik ke repository');
+    t1.el.classList.add('is-aktif'); t2.el.classList.add('is-mati');
+    box.append(ik, judul, teks, kon.el, t1.el, t2.el);
+
+    var batal = tombol('Batal', '', null, tutupModal);
+    var mulai = tombol('Mulai langkah 1', 'rw-btn--primary', 'bi-arrow-repeat');
+    var berubah = false;
+    function selesai(ok, j, k) {
+      ik.className = 'rw-sync__ikon ' + (ok ? 'is-ok' : 'is-gagal'); ik.replaceChildren(ikon(ok ? 'bi-check-lg' : 'bi-exclamation-lg'));
+      judul.textContent = j; teks.textContent = k;
+    }
+    function tutupAkhir() {
+      var b = tombol(berubah ? 'Selesai' : 'Tutup', berubah ? 'rw-btn--primary' : '', berubah ? 'bi-check2' : null, function () { if (berubah) muatUlang({ segar: '1' }); else tutupModal(); });
+      $('#rw-modal-foot').replaceChildren(b);
+      modalSibuk = false;
+      if (!berubah) return;
+      // badge ikut tampil setelah halaman dimuat ulang
+      (box._badges || []).forEach(function (x) { badge(x[0], x[1], x[2], true); });
+    }
+    function catat(j, k, ok) { (box._badges = box._badges || []).push([j, k, ok]); }   // tampil sebagai badge setelah halaman dimuat ulang
+
+    function langkah2(jml) {
+      t1.el.classList.remove('is-aktif'); t1.el.classList.add('is-ok'); t1.no.replaceChildren(ikon('bi-check-lg'));
+      t2.el.classList.remove('is-mati'); t2.el.classList.add('is-aktif');
+      ik.replaceChildren(ikon('bi-file-earmark-arrow-down'));
+      judul.textContent = 'Langkah 2: dokumen'; teks.textContent = 'Centang dokumen yang ingin ditarik dari SIASN. Dokumen yang sudah ada di repository tidak perlu ditarik ulang.';
+      t2.isi.hidden = false; t2.isi.replaceChildren(el('p', 'rw-muted', 'Memuat daftar dokumen…'));
+      var lewati = tombol('Lewati', '', null, function () { selesai(true, 'Sync selesai', 'Data riwayat sudah disinkronkan; dokumen tidak ditarik.'); tutupAkhir(true); });
+      var tarik = tombol('Tarik dokumen', 'rw-btn--primary', 'bi-download');
+      tarik.disabled = true;
+      $('#rw-modal-foot').replaceChildren(lewati, tarik);
+      modalSibuk = false;
+      get({ aksi: 'sync_dok_list', kategori: CFG.kategori }).then(function (j) {
+        var list = j.data || [];
+        if (!list.length) {
+          t2.ket.textContent = 'Tidak ada dokumen di SIASN';
+          t2.isi.replaceChildren(el('p', 'rw-muted', 'SIASN tidak menyediakan dokumen untuk riwayat ini.'));
+          t2.el.classList.add('is-ok');
+          selesai(true, 'Sync selesai', 'Data riwayat sudah disinkronkan.');
+          tutupAkhir(true); return;
         }
-        return lanjut();
-      }).then(function (h) {
-        $('#rw-modal-title').textContent = h.gagal ? 'Sync selesai dengan catatan' : 'Sync selesai';
-        toast(h.gagal ? h.gagal + ' dokumen belum berhasil ditarik.' : 'Riwayat berhasil disinkronkan dari SIASN.', !h.gagal);
+        var baru = list.filter(function (d) { return !d.sudah; }).length;
+        t2.ket.textContent = list.length + ' dokumen · ' + baru + ' belum ada di repository';
+        var semua = el('label', 'rw-check'); semua.style.padding = '0';
+        var cbS = el('input'); cbS.type = 'checkbox'; semua.append(cbS, el('span', '', 'Pilih semua'));
+        var ul = el('ul', 'rw-dokpilih');
+        list.forEach(function (d) {
+          var li = el('li'), cb = el('input'); cb.type = 'checkbox'; cb.checked = !d.sudah; cb.value = d.idx; cb.id = 'rw-sd-' + d.idx;
+          var lb = el('label'); lb.htmlFor = cb.id; lb.style.flex = '1'; lb.style.minWidth = '0'; lb.style.cursor = 'pointer';
+          lb.append(document.createTextNode(d.dokumen), el('small', '', d.label));
+          var st = el('b', '', d.sudah ? '✓' : '');
+          if (d.sudah) { li.className = 'ok'; st.title = 'Sudah ada di repository'; lb.append(el('small', '', 'Sudah ada — centang untuk tarik ulang')); }
+          li.append(cb, lb, st); li._cb = cb; li._st = st; li._d = d;
+          ul.append(li);
+        });
+        var prog = el('div', 'rw-progress'); var bar = el('span'); prog.append(bar); prog.hidden = true;
+        t2.isi.replaceChildren(semua, ul, prog);
+        function hitung() {
+          var n = $$('input', ul).filter(function (c) { return c.checked; }).length;
+          $('span', tarik).textContent = n ? 'Tarik ' + n + ' dokumen' : 'Tarik dokumen';
+          tarik.disabled = !n;
+          cbS.checked = n === list.length; cbS.indeterminate = n > 0 && n < list.length;
+        }
+        cbS.addEventListener('change', function () { $$('input', ul).forEach(function (c) { c.checked = cbS.checked; }); hitung(); });
+        ul.addEventListener('change', hitung);
+        hitung();
+        tarik.addEventListener('click', function () {
+          var pilih = $$('li', ul).filter(function (li) { return li._cb.checked; });
+          modalSibuk = true; tarik.disabled = lewati.disabled = true; cbS.disabled = true;
+          $$('input', ul).forEach(function (c) { c.disabled = true; });
+          prog.hidden = false; bar.style.width = '3%';
+          ik.replaceChildren(el('span', 'rw-spin')); judul.textContent = 'Menarik dokumen…';
+          var i = 0, ok = 0, gagal = 0, putus = false;
+          function lanjut() {
+            if (i >= pilih.length) return Promise.resolve();
+            var li = pilih[i];
+            if (putus) { li.className = 'gagal'; li._st.textContent = '!'; i++; gagal++; return lanjut(); }
+            li.className = 'proses'; li._st.textContent = '⏳'; li.scrollIntoView({ block: 'nearest' });
+            teks.textContent = 'Dokumen ' + (i + 1) + ' dari ' + pilih.length + ': ' + li._d.dokumen;
+            var f2 = fdBaru('sync_dok'); f2.set('kategori', CFG.kategori); f2.set('idx', String(li._d.idx));
+            return post(f2).then(function (r) { ok++; berubah = true; li.className = 'ok'; li._st.textContent = '✓'; li._st.title = r.message || ''; })
+              .catch(function (e) { gagal++; li.className = 'gagal'; li._st.textContent = '!'; li._st.title = e.message; if (e.data && e.data.offline) { putus = true; cekApi(); } })
+              .then(function () { i++; bar.style.width = Math.round(100 * i / pilih.length) + '%'; return lanjut(); });
+          }
+          lanjut().then(function () {
+            t2.no.replaceChildren(ikon(gagal ? 'bi-exclamation-lg' : 'bi-check-lg'));
+            t2.el.classList.remove('is-aktif'); if (!gagal) t2.el.classList.add('is-ok');
+            if (ok) catat('Langkah 2: dokumen', ok + ' dokumen berhasil ditarik ke repository', true);
+            if (gagal) catat('Sebagian dokumen gagal', gagal + ' dokumen belum berhasil' + (putus ? ' (API BKN terputus)' : '') + '. Arahkan kursor ke tanda ! untuk detail.', false);
+            selesai(!gagal, gagal ? 'Sync selesai dengan catatan' : 'Sync selesai', ok + ' dokumen ditarik' + (gagal ? ', ' + gagal + ' gagal.' : '.'));
+            tutupAkhir(!gagal);
+          });
+        });
       }).catch(function (e) {
-        ubahBaris(l1, e.message, 'gagal');
-        $('#rw-modal-title').textContent = e.data && e.data.offline ? 'API BKN tidak terhubung' : 'Sync belum berhasil';
-        bar.style.width = '100%';
-        if (e.data && e.data.offline) cekApi();
-      }).then(function () {
-        modalSibuk = false; tutup.disabled = false;
-        $('span', tutup).textContent = 'Tutup';
-        if (berubah) tutup.replaceWith(tombol('Selesai', 'rw-btn--primary', 'bi-check2', function () { muatUlang({ segar: '1' }); }));
+        t2.isi.replaceChildren(info(e.message, 'kuning', 'bi-exclamation-triangle'));
+        selesai(false, 'Daftar dokumen gagal dimuat', 'Data riwayat sudah tersinkron. Coba ulangi sync untuk menarik dokumen.');
+        tutupAkhir(false);
+      });
+    }
+
+    mulai.addEventListener('click', function () {
+      modalSibuk = true; mulai.disabled = batal.disabled = true;
+      ik.replaceChildren(el('span', 'rw-spin'));
+      judul.textContent = 'Langkah 1: menarik data…'; teks.textContent = 'Mohon tunggu, jangan tutup halaman ini.';
+      t1.isi.hidden = false; t1.isi.replaceChildren(el('div', 'rw-progress', ''));
+      var bar = el('span'); t1.isi.firstChild.append(bar); bar.style.width = '35%';
+      var fd = fdBaru('sync_data'); fd.set('kategori', CFG.kategori);
+      post(fd).then(function (j) {
+        berubah = true; bar.style.width = '100%';
+        t1.ket.textContent = j.message;
+        t1.isi.hidden = true;
+        catat('Langkah 1: data', j.message, true);
+        if (!j.dokumen) {
+          t1.el.classList.add('is-ok'); t1.no.replaceChildren(ikon('bi-check-lg'));
+          t2.ket.textContent = 'Tidak ada dokumen di SIASN';
+          selesai(true, 'Sync selesai', 'Data riwayat ' + nama + ' sudah sesuai SIASN.');
+          tutupAkhir(true); return;
+        }
+        langkah2(j.dokumen);
+      }).catch(function (e) {
+        t1.isi.replaceChildren(info(e.message, 'kuning', 'bi-exclamation-triangle'));
+        t1.no.replaceChildren(ikon('bi-exclamation-lg'));
+        var off = e.data && e.data.offline;
+        if (off) cekApi();
+        badge(off ? 'API BKN tidak terhubung' : 'Sync belum berhasil', e.message, false);
+        selesai(false, off ? 'API BKN tidak terhubung' : 'Sync belum berhasil', 'Data di SIMPEG tidak diubah.');
+        modalSibuk = false;
+        mulai.disabled = batal.disabled = false; $('span', mulai).textContent = 'Coba lagi';
       });
     });
-    bukaModal('Sync SIASN — ' + CFG.judul, box, [tutup, mulai]);
+    kon.janji.then(function (j) {
+      if (j.bkn && !j.bkn.ok) { teks.textContent = 'API BKN sedang tidak terhubung. Sync mungkin gagal; coba beberapa saat lagi.'; }
+    });
+    bukaModal('Sync SIASN', box, [batal, mulai], { kelas: 'rw-modal--sync', fokus: mulai });
   }
 
   /* ---------- tombol halaman ---------- */
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-rw]');
-    var kartuEl = !b && e.target.closest && e.target.closest('.rw-item');
+    var kartuEl = !b && e.target.closest && e.target.closest('.rw-row');
     if (kartuEl && !e.target.closest('a,button')) { lihat(+kartuEl.dataset.idx); return; }   // klik kartu = Lihat
     if (!b || (modalEl && modalEl.contains(b))) return;
     var idx = b.dataset.idx !== undefined ? +b.dataset.idx : -1, r = BARIS[idx];
@@ -1194,5 +1498,8 @@
       case 'usulan': togelUsulan(); break;
       case 'sync': bukaSync(); break;
     }
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('rw-row')) { e.preventDefault(); lihat(+e.target.dataset.idx); }
   });
 })();

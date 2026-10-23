@@ -12,7 +12,9 @@ middleware('riwayat.view');
  *   GET  aksi=ref&nama=..&q=..&tingkat=..  referensi form usulan
  *   POST aksi=simpan                       ajukan / perbaiki usulan tambah|ubah|hapus (multipart, dokumen PDF)
  *   POST aksi=batal                        batalkan usulan sendiri yang masih diajukan / dikembalikan
- *   POST aksi=sync_data | sync_dok         sync SIASN kategori (tahap data / satu dokumen)
+ *   POST aksi=sync_data | sync_dok         sync SIASN kategori (langkah 1 data / satu dokumen langkah 2)
+ *   GET  aksi=sync_dok_list&kategori=..    daftar dokumen SIASN hasil langkah 1 (untuk dipilih)
+ *   POST aksi=identitas_simpan             ubah identitas (SIMPEG, opsional kirim ke SIASN BKN)
  * Semua aksi memakai PNS_ID pegawai yang login; jenis & riwayat yang diubah dicocokkan dengan data milik sendiri.
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -85,8 +87,28 @@ if ($aksi === 'ref') {
     $nama = rw_input('nama');
     $sumber = ['pendidikan' => '/asn/ref-pendidikan', 'penghargaan' => '/asn/ref-penghargaan', 'diklat' => '/asn/ref-diklat',
         'diklatpim' => '/asn/ref-diklatpim', 'agama' => '/agama', 'jurusan' => '/asn/ref-jurusan',
-        'unor' => '/asn/ref-jabatan', 'fungsional' => '/asn/ref-jabatan', 'pelaksana' => '/asn/ref-jabatan', 'struktural' => '/asn/ref-jabatan'][$nama] ?? null;
+        'wilayah' => '/wilayah', 'unor' => '/asn/ref-jabatan', 'fungsional' => '/asn/ref-jabatan', 'pelaksana' => '/asn/ref-jabatan', 'struktural' => '/asn/ref-jabatan'][$nama] ?? null;
     if ($sumber === null) rw_keluar(['success' => false, 'message' => 'Referensi tidak dikenal'], 400);
+    if ($nama === 'wilayah') {
+        // Tempat lahir: hanya kabupaten (KB) / kota (KA) dengan ID SIASN, seperti lokasi.search.php SIMPEG.
+        $q = trim(preg_replace('/[^\p{L}\p{N} .\'-]/u', '', rw_input('q')) ?? '');
+        if ((function_exists('mb_strlen') ? mb_strlen($q) : strlen($q)) < 2) rw_keluar(['success' => true, 'data' => []]);
+        $out = [];
+        for ($off = 0; $off < 500 && count($out) < 40; $off += 100) {
+            [$kode, $json] = riwayat_api_kirim('GET', '/wilayah?' . http_build_query(['search' => substr($q, 0, 50), 'limit' => 100, 'offset' => $off]));
+            if ($kode !== 200 || !is_array($json)) { if ($off === 0) rw_keluar(['success' => false, 'message' => 'Referensi lokasi belum dapat dimuat'], 502); break; }
+            $hal = is_array($json['data']['data'] ?? null) ? $json['data']['data'] : api_rows($json);
+            foreach ($hal as $l) {
+                $jenis = strtoupper((string)($l['jenis'] ?? ''));
+                $kodeL = (string)($l['kode'] ?? '');
+                if (in_array($jenis, ['KB', 'KA'], true) && preg_match('/^[0-9A-F]{32}$/', $kodeL)) {
+                    $out[] = ['id' => $kodeL, 'nama' => ($jenis === 'KA' ? 'Kota ' : 'Kab. ') . trim((string)($l['nama'] ?? ''))];
+                }
+            }
+            if (count($hal) < 100) break;
+        }
+        rw_keluar(['success' => true, 'data' => array_slice($out, 0, 40)]);
+    }
     if ($nama === 'struktural') {
         $unor = rw_input('unor');
         if (!preg_match(RIWAYAT_POLA_ID, $unor)) rw_keluar(['success' => true, 'data' => []]);
@@ -108,13 +130,22 @@ if ($aksi === 'ref') {
     foreach (api_rows($json) as $r) {
         if (!is_array($r)) continue;
         $id = '';
-        foreach (['id', 'kode', 'harga_id', 'agama_id', 'ID'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $id = trim((string)$r[$k]); break; } }
+        foreach (['id', 'kode', 'harga_id', 'agama_id', 'id_agm', 'ID'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $id = trim((string)$r[$k]); break; } }
         $lbl = '';
-        foreach (['nama', 'name', 'harga_nama', 'agama', 'nmpendidikan'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $lbl = trim((string)$r[$k]); break; } }
+        foreach (['nama', 'name', 'harga_nama', 'agama', 'nm_agm', 'nama_agama', 'nmpendidikan'] as $k) { if (isset($r[$k]) && is_scalar($r[$k]) && trim((string)$r[$k]) !== '') { $lbl = trim((string)$r[$k]); break; } }
         if ($id !== '' && $lbl !== '') $out[] = ['id' => $id, 'nama' => $lbl];
     }
     if (!in_array($nama, ['jurusan', 'unor', 'fungsional', 'pelaksana', 'struktural'], true)) $_SESSION['riwayat_ref'][$nama] = $out;
     rw_keluar(['success' => true, 'data' => $out]);
+}
+
+/* ---------- sync: daftar dokumen tahap 2 ---------- */
+if ($aksi === 'sync_dok_list') {
+    require_once __DIR__ . '/includes/riwayat_sync.php';
+    $kategori = rw_input('kategori');
+    $d = isset($kategoriTampil[$kategori]) ? riwayat_sync_dok_daftar($pegawai, $kategori) : null;
+    if ($d === null) rw_keluar(['success' => false, 'message' => 'Jalankan langkah 1 (data) lebih dulu.'], 409);
+    rw_keluar(['success' => true, 'data' => $d]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') rw_keluar(['success' => false, 'message' => 'Metode tidak diizinkan'], 405);
@@ -135,6 +166,65 @@ if ($aksi === 'sync_data' || $aksi === 'sync_dok') {
     if (!rw_batas('sync_dok', 150, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu banyak dokumen ditarik. Tunggu beberapa menit.'], 429);
     $h = riwayat_sync_dok($pegawai, $kategori, (int)rw_input('idx'));
     rw_keluar($h);
+}
+
+/* ---------- simpan identitas (seperti identitas.save.php SIMPEG, tanpa pindah unit) ---------- */
+if ($aksi === 'identitas_simpan') {
+    if (!rw_batas('identitas', 20, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu banyak penyimpanan. Tunggu beberapa menit.'], 429);
+    $masuk = static function (string $k): ?string {
+        if (!array_key_exists($k, $_POST) || !is_string($_POST[$k])) return null;   // tidak dikirim = tidak diubah
+        return trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $_POST[$k]) ?? '');
+    };
+    $payload = [];
+    $errors = [];
+    if (($v = $masuk('agamaId')) !== null) {
+        [$kodeA, $jsonA] = riwayat_api_kirim('GET', '/agama');
+        $ids = [];
+        foreach (api_rows(is_array($jsonA) ? $jsonA : null) as $a) $ids[] = (string)($a['id_agm'] ?? ($a['id'] ?? ''));
+        if (!ctype_digit($v) || ($ids && !in_array($v, $ids, true))) $errors['agamaId'] = 'Pilih agama.'; else $payload['agamaId'] = (int)$v;
+    }
+    if (($v = $masuk('jenisKawinId')) !== null) {
+        if (!isset(RIWAYAT_REF_KAWIN[$v])) $errors['jenisKawinId'] = 'Pilih status perkawinan.'; else $payload['jenisKawinId'] = (int)$v;
+    }
+    if (($v = $masuk('golDarah')) !== null) {
+        $v = strtoupper($v);
+        if ($v !== '' && !in_array($v, RIWAYAT_REF_GOL_DARAH, true)) $errors['golDarah'] = 'Golongan darah harus A, B, AB, atau O.'; else $payload['golDarah'] = $v;
+    }
+    if (($v = $masuk('tempatLahirId')) !== null) {
+        if (!preg_match('/^[A-Za-z0-9-]{8,64}$/', $v)) $errors['tempatLahirId'] = 'Pilih tempat lahir dari daftar.'; else $payload['tempatLahirId'] = $v;
+    }
+    if (($v = $masuk('alamat')) !== null) {
+        if ((function_exists('mb_strlen') ? mb_strlen($v) : strlen($v)) > 500) $errors['alamat'] = 'Maksimal 500 karakter.'; else $payload['alamat'] = $v;
+    }
+    if (($v = $masuk('noHp')) !== null) {
+        $v = preg_replace('/[\s.-]/', '', $v) ?? '';
+        if ($v !== '' && !preg_match('/^(\+?62|0)[0-9]{8,14}$/', $v)) $errors['noHp'] = 'Format No. HP tidak valid (contoh 081234567890).'; else $payload['noHp'] = $v;
+    }
+    if (($v = $masuk('email')) !== null) {
+        if ($v !== '' && (strlen($v) > 100 || !preg_match('/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/', $v))) $errors['email'] = 'Format email tidak valid.'; else $payload['email'] = $v;
+    }
+    if (($v = $masuk('emailGov')) !== null) {
+        if ($v !== '' && (strlen($v) > 100 || !preg_match('/^[A-Za-z0-9._%+\-]+@([A-Za-z0-9-]+\.)*go\.id$/i', $v))) $errors['emailGov'] = 'Email dinas harus berdomain .go.id.'; else $payload['emailGov'] = strtolower($v);
+    }
+    if ($errors) rw_keluar(['success' => false, 'message' => 'Periksa kembali isian yang ditandai.', 'errors' => $errors, 'field' => array_key_first($errors)], 422);
+    if (!$payload) rw_keluar(['success' => false, 'message' => 'Tidak ada data yang diubah.'], 422);
+    [$kode, $json] = riwayat_api_kirim('PATCH', '/asn/data-utama/' . rawurlencode($pegawai['pns_id']) . '/identitas', $payload);
+    if ($kode < 200 || $kode >= 300) {
+        error_log('TEMANKU identitas gagal pns=' . $pegawai['pns_id'] . ' http=' . $kode);
+        rw_keluar(['success' => false, 'message' => riwayat_api_pesan($json, $kode === 404 ? 'Fitur simpan identitas belum tersedia di API.' : 'Gagal menyimpan ke SIMPEG (HTTP ' . $kode . ').'),
+            'field' => is_array($json) ? ($json['field'] ?? null) : null], $kode >= 400 && $kode < 500 ? 422 : 502);
+    }
+    unset($_SESSION['riwayat_identitas']);
+    error_log('TEMANKU identitas diubah pns=' . $pegawai['pns_id'] . ' field=' . implode(',', array_keys($payload)));
+    $bknKeys = array_intersect_key($payload, array_flip(RIWAYAT_IDT_BKN));
+    $bkn = ['status' => 'skip', 'message' => ''];
+    if ($bknKeys && rw_input('kirim_bkn') === '1') {
+        require_once __DIR__ . '/includes/riwayat_sync.php';
+        $bkn = riwayat_bkn_ubah_data_utama($pegawai, $bknKeys);
+    } elseif ($bknKeys) {
+        $bkn = ['status' => 'skip', 'message' => 'Perubahan hanya disimpan di SIMPEG (tidak dikirim ke SIASN BKN).'];
+    }
+    rw_keluar(['success' => true, 'message' => (string)($json['message'] ?? 'Data identitas berhasil diperbarui.'), 'bkn' => $bkn]);
 }
 
 /* ---------- batalkan usulan ---------- */
