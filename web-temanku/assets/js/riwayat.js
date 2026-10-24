@@ -1599,17 +1599,14 @@
       });
       tb.append(tbody); box.append(tb);
     }
-    var dokJudul = null, dokBlok = null;
-    if (u.aksi !== 'hapus') {
-      dokJudul = el('div', 'rw-sec', 'Dokumen usulan');
-      dokBlok = blokDokumen((u.dok || []).map(function (k) { return { label: labelDok(u.jenis, k), sumber: { url: urlUsulan(u, k) } }; }), 0,
-        u.aksi === 'ubah' ? 'Tidak ada dokumen baru; dokumen riwayat lama tetap dipakai.' : 'Tidak ada dokumen.');
-    } else {
-      // usulan hapus: tampilkan dokumen riwayat yang akan dihapus
-      var rh = BARIS.filter(function (r) { return r.jenis === u.jenis && r.id_rw && r.id_rw === u.ref_id; })[0];
-      dokJudul = el('div', 'rw-sec', 'Dokumen riwayat');
-      dokBlok = blokDokumen(rh ? (rh.dok || []).map(function (d) { return { label: d[0], sumber: { url: urlRiwayat(rh, d[1]) } }; }) : [], 0, 'Tidak ada dokumen.');
-    }
+    // dokumen: unggahan baru di usulan + dokumen riwayat saat ini yang tidak diganti (ubah) / yang akan dihapus (hapus)
+    var rRef = u.aksi === 'tambah' ? null : BARIS.filter(function (r) { return r.jenis === u.jenis && r.id_rw && (r.id_rw === u.ref_id || u.jenis === 'cpns'); })[0];
+    var docsU = u.aksi === 'hapus' ? [] : (u.dok || []).map(function (k) { return { label: labelDok(u.jenis, k) + (u.aksi === 'ubah' ? ' (baru)' : ''), sumber: { url: urlUsulan(u, k) } }; });
+    var ganti = (u.dok || []).map(function (k) { return kolomRiwayat(u.jenis, k); });
+    var docsR = rRef ? (rRef.dok || []).filter(function (d) { return u.aksi === 'hapus' || ganti.indexOf(d[1]) < 0; })
+      .map(function (d) { return { label: d[0] + (u.aksi === 'ubah' && docsU.length ? ' (saat ini)' : ''), sumber: { url: urlRiwayat(rRef, d[1]) } }; }) : [];
+    var dokJudul = el('div', 'rw-sec', u.aksi === 'hapus' ? 'Dokumen riwayat' : (docsU.length || !docsR.length ? 'Dokumen usulan' : 'Dokumen riwayat (tidak diganti)'));
+    var dokBlok = blokDokumen(docsU.concat(docsR), 0, 'Tidak ada dokumen.');
     if (HP.matches) box.append(dokJudul, dokBlok);
     if (u.jejak && u.jejak.length) {
       box.append(el('div', 'rw-sec', 'Riwayat verifikasi'));
