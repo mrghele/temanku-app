@@ -1609,6 +1609,15 @@ func ecarakdekDokDaftar(c *gin.Context) {
 // hariKerjaBuild: penanda versi pemeriksaan hari kerja sekolah (cek apakah build terbaru sudah berjalan).
 const hariKerjaBuild = "hk-sekolah-2026-10-24c"
 
+// namaUnitSekolah: nama unit di SIMPEG (tbl_unit.nmunit) untuk halaman cek.
+func namaUnitSekolah(unit string) string {
+	var nama string
+	if db.DB != nil && unit != "" {
+		_ = db.DB.QueryRow(`SELECT COALESCE(nmunit,'') FROM tbl_unit WHERE id_unit = ?`, unit).Scan(&nama)
+	}
+	return strings.TrimSpace(nama)
+}
+
 // cekHariKerjaSekolah: GET /portal/cek-hari-kerja (portal guru, data diri sendiri) - rantai penentu hari kerja
 // guru/tendik: unit absen, jenjang, pola, jadwal jenjang hari ini, serta unit & pola yang dipakai rekap.
 func cekHariKerjaSekolah(c *gin.Context, nip, unit string) {
@@ -1634,7 +1643,7 @@ func cekHariKerjaSekolah(c *gin.Context, nip, unit string) {
 		sort.Strings(out)
 		return out
 	}
-	absen := gin.H{"unit": unit, "unit_nama": absenData.unitName(unit), "jenjang": jenjangUnit(unit),
+	absen := gin.H{"unit": unit, "unit_nama": namaUnitSekolah(unit), "jenjang": jenjangUnit(unit),
 		"hari_kerja_jenjang": hariKerjaJenjang(jenjangUnit(unit)), "jadwal_jenjang": jadwalJenjang(unit)}
 	if codes, err := polaUnitBerjenjang(unit); err == nil {
 		absen["pola"] = polaInfo(codes)
@@ -1652,7 +1661,7 @@ func cekHariKerjaSekolah(c *gin.Context, nip, unit string) {
 	rekap := gin.H{}
 	if list, err := rekapData.pegawai("", nip); err == nil && len(list) > 0 {
 		p := list[0]
-		rekap["unit"], rekap["subunit"], rekap["unit_nama"] = p.Unit, p.SubUnit, absenData.unitName(p.Unit)
+		rekap["unit"], rekap["subunit"], rekap["unit_nama"] = p.Unit, p.SubUnit, namaUnitSekolah(p.Unit)
 		rekap["jenjang"] = jenjangUnit(p.Unit)
 		if codes, err := polaUnitBerjenjang(p.Unit); err == nil {
 			rekap["pola"] = polaInfo(codes)
