@@ -89,13 +89,17 @@ function layanan(string $jenis='internal', string $cari=''): array
         ];
     }
     if ($jenis !== 'internal') return [];
+    // Sama dengan katalog layanan kepegawaian TEMANKU; Cuti memakai pengajuan cuti portal guru.
     $rows = [
-        ['nama'=>'Ajukan Cuti', 'url'=>url('cuti.php'), 'icon'=>'bi-calendar-check-fill', 'warna'=>'kuning', 'deskripsi'=>'Pengajuan cuti, disetujui admin sekolah'],
-        ['nama'=>'Pengajuan Dinas', 'url'=>url('dinas.php'), 'icon'=>'bi-briefcase-fill', 'warna'=>'biru', 'deskripsi'=>'Surat tugas dinas dalam / luar daerah'],
-        ['nama'=>'Claim Presensi', 'url'=>url('claim.php'), 'icon'=>'bi-clipboard-check-fill', 'warna'=>'hijau', 'deskripsi'=>'Tugas di luar sekolah saat jam absen'],
-        ['nama'=>'Riwayat ASN', 'url'=>url('riwayat.php'), 'icon'=>'bi-clock-history', 'warna'=>'rose', 'deskripsi'=>'Data & usulan perubahan riwayat'],
-        ['nama'=>'Rekam Wajah', 'url'=>url('wajah.php'), 'icon'=>'bi-person-bounding-box', 'warna'=>'biru', 'deskripsi'=>'Perekaman wajah untuk absen'],
-        ['nama'=>'Helpdesk', 'url'=>service_url('helpdesk'), 'icon'=>'bi-headset', 'warna'=>'abu', 'deskripsi'=>'Bantuan layanan kepegawaian'],
+        ['nama'=>'Kenaikan Pangkat', 'url'=>service_url('pangkat'), 'icon'=>'bi-arrow-up-circle-fill', 'warna'=>'biru', 'deskripsi'=>'Usulan kenaikan pangkat'],
+        ['nama'=>'KGB', 'url'=>service_url('kgb'), 'icon'=>'bi-cash-coin', 'warna'=>'hijau', 'deskripsi'=>'Kenaikan gaji berkala'],
+        ['nama'=>'Cuti', 'url'=>url('cuti.php'), 'icon'=>'bi-calendar-check-fill', 'warna'=>'kuning', 'deskripsi'=>'Pengajuan cuti'],
+        ['nama'=>'Pensiun', 'url'=>service_url('pensiun'), 'icon'=>'bi-mortarboard-fill', 'warna'=>'merah', 'deskripsi'=>'Usulan pensiun'],
+        ['nama'=>'Satya Lencana', 'url'=>service_url('satya'), 'icon'=>'bi-award-fill', 'warna'=>'biru', 'deskripsi'=>'Tanda kehormatan'],
+        ['nama'=>'Pencantuman Gelar', 'url'=>service_url('gelar'), 'icon'=>'bi-patch-check-fill', 'warna'=>'abu', 'deskripsi'=>'Pencantuman gelar akademik'],
+        ['nama'=>'Tugas Belajar', 'url'=>service_url('tubel'), 'icon'=>'bi-book-half', 'warna'=>'biru', 'deskripsi'=>'Pengajuan tugas belajar'],
+        ['nama'=>'Aksara', 'url'=>service_url('aksara'), 'icon'=>'bi-journal-bookmark-fill', 'warna'=>'hijau', 'deskripsi'=>'Layanan Aksara'],
+        ['nama'=>'Helpdesk', 'url'=>service_url('helpdesk'), 'icon'=>'bi-headset', 'warna'=>'biru', 'deskripsi'=>'Bantuan layanan kepegawaian'],
     ];
     foreach ($rows as &$row) $row['url'] = safe_service_href($row['url']);
     unset($row);

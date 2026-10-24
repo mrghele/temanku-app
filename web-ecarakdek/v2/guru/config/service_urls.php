@@ -5,6 +5,14 @@ declare(strict_types=1);
 return [
     'ecarakdek' => '../',
     'helpdesk' => 'https://103.216.104.37/helpdesk',
+    'aksara' => 'https://103.216.104.37/aksara',
+    // Layanan kepegawaian (sama dengan TEMANKU): halaman layanan di domain TEMANKU.
+    'pangkat' => 'https://temanku.kepulauanselayarkab.go.id/pangkat',
+    'kgb' => 'https://temanku.kepulauanselayarkab.go.id/kgb',
+    'pensiun' => 'https://temanku.kepulauanselayarkab.go.id/pensiun',
+    'satya' => 'https://temanku.kepulauanselayarkab.go.id/satya',
+    'gelar' => 'https://temanku.kepulauanselayarkab.go.id/gelar',
+    'tubel' => 'https://temanku.kepulauanselayarkab.go.id/tubel.php',
     'myasn' => 'https://myasn.bkn.go.id',
     'ekinerja' => 'https://kinerja.bkn.go.id',
     'tte' => 'https://tte.kepulauanselayarkab.go.id',

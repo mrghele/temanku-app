@@ -50,6 +50,7 @@ $hariIni = (new DateTimeImmutable('now', new DateTimeZone('Asia/Makassar')));
 echo layanan_css();
 ?>
 <section class="lyn">
+  <?php $tabAktif = 'claim'; require __DIR__ . '/includes/pengajuan_tab.php'; ?>
   <h1>Claim Presensi</h1>
   <p class="lyn__lead">Untuk tugas di luar kantor yang membuat Anda tidak dapat absen di kantor, mis. <b>dipanggil rapat RAPIM</b>, <b>undangan kegiatan di Ruang Pola</b>,
     atau <b>mewakili pimpinan</b> di tempat lain. Diajukan paling lama <b>3 hari</b> setelahnya, dengan bukti; disetujui admin sekolah.</p>

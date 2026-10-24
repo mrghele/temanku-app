@@ -31,9 +31,9 @@ $list = api_request(API_TEMANKU, 'GET', '/portal/cuti/pengajuan')['data'] ?? [];
 echo layanan_css();
 ?>
 <section class="lyn">
+  <?php $tabAktif = 'cuti'; require __DIR__ . '/includes/pengajuan_tab.php'; ?>
   <h1>Ajukan Cuti</h1>
   <p class="lyn__lead">Pengajuan diteruskan ke admin sekolah (menu Cuti di e-Carakdek). Setelah <b>disetujui</b>, absen pada hari cuti tidak diperlukan dan rekap mencatat <b>CUTI</b>.</p>
-  <p class="lyn__lead"><a href="<?= e(url('dinas.php')) ?>"><i class="bi bi-briefcase"></i> Pengajuan dinas</a> · <a href="<?= e(url('claim.php')) ?>"><i class="bi bi-clipboard-check"></i> Claim presensi</a></p>
   <form class="lyn__card" method="post" action="<?= e(url('cuti.php')) ?>">
     <?= csrf_field() ?>
     <label>Jenis cuti<select name="jenis_cuti" required><option value="">-- Pilih --</option>

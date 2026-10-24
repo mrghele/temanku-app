@@ -22,8 +22,9 @@ if (!defined('FACE_INSECURE_HTTP_HOST')) {
     unset($guruApi);
 }
 
-// Identitas (agama, alamat, kontak, ...) hanya dapat diubah admin sekolah di e-Carakdek (API Go: PATCH khusus admin).
-if (!defined('RIWAYAT_UBAH_IDENTITAS')) define('RIWAYAT_UBAH_IDENTITAS', false);
+// Guru boleh mengubah identitasnya sendiri (agama, kawin, gol. darah, tempat lahir, alamat, HP, email) seperti di TEMANKU;
+// disimpan ke SIMPEG lewat API Go (PATCH /asn/data-utama/{id}/identitas, cakupan data sendiri). Tidak dikirim ke SIASN dari sini.
+if (!defined('RIWAYAT_UBAH_IDENTITAS')) define('RIWAYAT_UBAH_IDENTITAS', true);
 
 /** Akun yang boleh memakai portal guru: guru/tendik (pegawai) & admin sekolah yang juga ASN. */
 function guru_boleh(): bool

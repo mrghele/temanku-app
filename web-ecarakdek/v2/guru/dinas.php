@@ -99,8 +99,8 @@ $label = ['diajukan' => 'Menunggu persetujuan', 'disetujui' => 'Disetujui', 'dit
 .st-diajukan{background:#fff6e0;color:#8a5a00}.st-disetujui{background:#e8f6ee;color:#14663a}.st-ditolak{background:#fff1f0;color:#8a2c22}
 </style>
 <section class="dns">
+  <?php $tabAktif = 'dinas'; require __DIR__ . '/includes/pengajuan_tab.php'; ?>
   <h1>Pengajuan Dinas</h1>
-  <p class="dns__lead"><a href="<?= e(url('cuti.php')) ?>"><i class="bi bi-calendar-check"></i> Ajukan cuti</a> · <a href="<?= e(url('claim.php')) ?>"><i class="bi bi-clipboard-check"></i> Claim presensi</a></p>
   <p class="dns__lead">Ajukan surat tugas Anda. Setelah <b>disetujui admin sekolah</b>, absen lewat tombol <i>Absen Dinas</i>:
     Dinas Dalam Daerah → di kecamatan/desa tujuan; Dinas Luar Daerah → sekali sehari di kabupaten/kota tujuan (hari berangkat &amp; kembali dibebaskan).</p>
   <form class="dns__card" method="post" action="<?= e(url('dinas.php')) ?>" enctype="multipart/form-data">

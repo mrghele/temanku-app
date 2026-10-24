@@ -68,7 +68,9 @@ func RegisterEcarakdekWebRoutes(r *gin.Engine) {
 	web.GET("/asn/data-utama/:id", byPath, asn.GetPegawaiByID)
 	web.POST("/asn/data-utama/foto", admin, asn.EcarakdekGuardBody("id"), asn.UpdateFotoPegawai)
 	web.GET("/asn/data-utama/:id/identitas", byPath, asn.GetIdentitasPegawai)
-	web.PATCH("/asn/data-utama/:id/identitas", admin, byPath, asn.EcarakdekGuardUnitTujuan(), asn.PatchIdentitasPegawai)
+	// guru/tendik boleh mengubah identitasnya sendiri (portal guru /v2/guru); byPath membatasi ke data dalam cakupan,
+	// unit organisasi tetap tidak dapat diubah (EcarakdekGuardUnitTujuan)
+	web.PATCH("/asn/data-utama/:id/identitas", byPath, asn.EcarakdekGuardUnitTujuan(), asn.PatchIdentitasPegawai)
 
 	// RIWAYAT: hanya dibaca (perubahan lewat usulan; sinkron & hapus dari SIASN dilakukan di SIMPEG)
 	for path, get := range map[string]gin.HandlerFunc{

@@ -225,11 +225,8 @@ if ($aksi === 'identitas_simpan') {
     error_log('TEMANKU identitas diubah pns=' . $pegawai['pns_id'] . ' field=' . implode(',', array_keys($payload)));
     $bknKeys = array_intersect_key($payload, array_flip(RIWAYAT_IDT_BKN));
     $bkn = ['status' => 'skip', 'message' => ''];
-    if ($bknKeys && rw_input('kirim_bkn') === '1') {
-        require_once __DIR__ . '/includes/riwayat_sync.php';
-        $bkn = riwayat_bkn_ubah_data_utama($pegawai, $bknKeys);
-    } elseif ($bknKeys) {
-        $bkn = ['status' => 'skip', 'message' => 'Perubahan hanya disimpan di SIMPEG (tidak dikirim ke SIASN BKN).'];
+    if ($bknKeys) {   // e-Carakdek tidak terhubung langsung ke SIASN BKN
+        $bkn = ['status' => 'skip', 'message' => 'Perubahan disimpan di SIMPEG. Pengiriman ke SIASN BKN dilakukan BKPSDM.'];
     }
     rw_keluar(['success' => true, 'message' => (string)($json['message'] ?? 'Data identitas berhasil diperbarui.'), 'bkn' => $bkn]);
 }

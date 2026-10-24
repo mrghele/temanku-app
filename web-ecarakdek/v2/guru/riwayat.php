@@ -162,7 +162,7 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
 </section>
 <form id="rw-csrf" hidden><?= csrf_field() ?></form>
 <script>window.RIWAYAT_CFG = <?= json_encode(['aksiUrl' => url('riwayat_aksi.php'), 'halamanUrl' => url('riwayat.php'), 'kategori' => 'identitas',
-    'idt' => $idt ? $idt['ubah'] : null, 'kawin' => RIWAYAT_REF_KAWIN, 'golDarah' => RIWAYAT_REF_GOL_DARAH, 'idtBkn' => RIWAYAT_IDT_BKN],
+    'idt' => $idt ? $idt['ubah'] : null, 'kawin' => RIWAYAT_REF_KAWIN, 'golDarah' => RIWAYAT_REF_GOL_DARAH, 'idtBkn' => []],
     JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
 
 <?php else:
