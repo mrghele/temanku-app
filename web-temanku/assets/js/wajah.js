@@ -965,10 +965,20 @@ async function loadAbsen() {
       const aktif = pilihanMasuk.some(o => o.aktif);
       const nama = [wfo && 'WFO', fwa && 'FWA', upacara.length && 'Upacara'].filter(Boolean).join(' / ');
       groups.masuk.unshift({ aksi: 'pilih-masuk', pola: dasar.pola, label: `Absen masuk (${nama})`, tanggal_dinas: dasar.tanggal_dinas, aktif,
+        jadwal_aktif: pilihanMasuk.some(o => o.jadwal_aktif),
         alasan: aktif ? '' : pilihanMasuk.map(o => o.alasan).filter(Boolean)[0] || 'Belum tersedia', lokasi: aktif ? `Pilih ${nama}` : '' });
     }
     tampilkanLaporan(Boolean(data.fwa_hari_ini));
-    for (const [key, list] of Object.entries(groups)) {
+    // Satu tombol: hanya absen yang berlaku sekarang (masuk ATAU pulang). Tanpa yang aktif: pilihan yang sesuai
+    // jadwal (terhalang lokasi), atau satu tombol abu-abu dengan alasan terdekat (pulang bila sudah absen masuk).
+    const tampil = { masuk: [], pulang: [] };
+    const pilih = cek => { for (const k of ['masuk', 'pulang']) tampil[k] = groups[k].filter(cek); return tampil.masuk.length + tampil.pulang.length > 0; };
+    if (!pilih(o => o.aktif) && !pilih(o => o.jadwal_aktif)) {
+      const sudahMasuk = (data.catatan || []).some(r => r.tanggal_dinas === data.tanggal && !r.tanpa_masuk);
+      const kunci = (sudahMasuk && groups.pulang.length) || !groups.masuk.length ? 'pulang' : 'masuk';
+      if (groups[kunci][0]) tampil[kunci] = [groups[kunci][0]];
+    }
+    for (const [key, list] of Object.entries(tampil)) {
       list.sort((a, b) => Number(b.aktif) - Number(a.aktif));
       const container = $(`#absen-list-${key}`);
       container.replaceChildren(...list.map(o => {
