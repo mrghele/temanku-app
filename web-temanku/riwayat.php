@@ -179,6 +179,7 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
         $baris[] = [
             'idx' => $i, 'id_rw' => $d['id_rw'], 'jenis' => $d['jenis'], 'judul' => $d['judul'], 'sub' => $d['sub'], 'label' => $d['label'],
             'waktu' => $d['waktu'], 'info' => $d['info'], 'dok' => $d['dok'], 'awal' => $d['awal'] ?? [], 'usulan' => $usulPerRef[$kunciRef] ?? '',
+            'kolom' => $d['kolom'] ?? [], 'badge' => $d['badge'] ?? '', 'b3' => $d['b3'] ?? $d['waktu'], 'lengkap' => $d['lengkap'] ?? null, 'kurang' => $d['kurang'] ?? [],
         ];
     }
     $formKat = array_intersect_key(riwayat_form_daftar(), array_flip($jenisKat));
