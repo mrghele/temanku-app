@@ -564,8 +564,11 @@ func polaSemua() map[string]polaKerja {
 // polaHariKerjaSekolah: ganti pola reguler yang hari kerjanya berbeda dari jadwal jenjang sekolah.
 func polaHariKerjaSekolah(jenjang string, codes []string) []string {
 	hk := hariKerjaJenjang(jenjang)
-	if hk == 0 || len(codes) == 0 {
+	if hk == 0 {
 		return codes
+	}
+	if len(codes) == 0 {
+		codes = []string{"5HK"} // unit & induk tanpa pengaturan: bawaan APEL 5 hari kerja (loadAbsenCtx/rekapSatu)
 	}
 	all := polaSemua()
 	ganti := ""
@@ -650,9 +653,7 @@ func init() {
 		}
 		for id, jenjang := range unitSekolah() {
 			if hariKerjaJenjang(jenjang) != 0 {
-				if codes := k.polaBerjenjang(id); len(codes) > 0 {
-					k.pola[id] = polaHariKerjaSekolah(jenjang, codes)
-				}
+				k.pola[id] = polaHariKerjaSekolah(jenjang, k.polaBerjenjang(id))
 			}
 		}
 		return k, nil
