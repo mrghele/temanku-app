@@ -39,8 +39,10 @@
     if (aktif.length) {
       var pulangSaja = aktif.every(function (o) { return o.aksi === 'pulang'; });
       var upacara = aktif.filter(function (o) { return o.aksi === 'upacara'; })[0];
+      // lupa absen masuk: saat jam pulang dibuka tombol tetap aktif sebagai Absen Pulang
+      var lupa = aktif.some(function (o) { return o.aksi === 'pulang' && o.mode === 'lupa'; });
       return { aktif: true, judul: pulangSaja ? 'Absen Pulang' : 'Absen Sekarang',
-        ket: masuk && pulangSaja ? 'Masuk pukul ' + masuk.masuk : (upacara ? upacara.label : '') };
+        ket: masuk && pulangSaja ? 'Masuk pukul ' + masuk.masuk : (pulangSaja && lupa ? 'Belum absen masuk hari ini' : (upacara ? upacara.label : '')) };
     }
     if (masuk) {
       var jenis = { wfa: ' (WFA)', dinas: ' (dinas)' }[masuk.jenis] || '';
@@ -53,7 +55,7 @@
     if (d.hari === 'Sabtu' || d.hari === 'Minggu') return { aktif: false, judul: 'Hari libur', ket: 'Akhir pekan (' + d.hari + ')' };
     var alasan = (opsi.filter(function (o) { return o.aksi !== 'pulang'; })[0] || opsi[0] || {}).alasan || '';
     if (/^Dibuka/.test(alasan)) return { aktif: false, judul: 'Belum waktunya absen', ket: alasan };
-    if (/^Ditutup/.test(alasan)) return { aktif: false, judul: 'Lewat jam absen', ket: alasan };
+    if (/^Ditutup/.test(alasan)) return { aktif: false, judul: 'Lewat jam absen masuk', ket: alasan + ' · absen pulang tetap bisa saat jam pulang dibuka' };
     return { aktif: false, judul: 'Belum bisa absen', ket: alasan || 'Tidak ada jadwal absen hari ini' };
   }
 
