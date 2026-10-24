@@ -533,6 +533,8 @@ body.rw-modal-buka{overflow:hidden}
 .rw-dua__kanan.rw-form{grid-template-columns:1fr}
 .rw-dua__kanan{position:sticky;top:0}
 .rw-dua .rw-viewer__area{height:calc(100vh - 290px);min-height:320px}
+.rw-dua .rw-banding{font-size:13px}
+.rw-dua__kanan>.rw-sec:first-child{margin-top:0}
 .rw-info2{width:100%;border-collapse:collapse;font-size:13.5px}
 .rw-info2 th{width:38%;padding:7px 12px 7px 0;text-align:left;font-weight:500;color:#64748b;vertical-align:top}
 .rw-info2 td{padding:7px 0;color:var(--rw-teks);font-weight:500;overflow-wrap:anywhere}

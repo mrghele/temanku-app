@@ -1577,7 +1577,7 @@
     var meta = [['Jenis', u.jenis_label], ['Aksi', (AKSI[u.aksi] || [u.aksi])[0]], ['Diajukan', tgl(u.diajukan_at)],
       ['Diverifikasi', u.diverifikasi_at ? tgl(u.diverifikasi_at) : '-'], ['Revisi', u.revisi > 0 ? 'ke-' + u.revisi : '-']];
     if (u.alasan) meta.push([u.aksi === 'hapus' ? 'Alasan penghapusan' : 'Keterangan', u.alasan]);
-    box.append(barisInfo(meta));
+    box.append(HP.matches ? barisInfo(meta) : tabelInfo(meta));
     var fields = ((FORM[u.jenis] || {}).field || []).filter(function (f) { return f.t !== 'tetap'; });
     var kunci = fields.length ? fields.map(function (f) { return [f.k, f.l]; }) : Object.keys(u.aksi === 'hapus' ? u.data_lama : u.data).map(function (k) { return [k, k]; });
     if (kunci.length) {
@@ -1599,11 +1599,18 @@
       });
       tb.append(tbody); box.append(tb);
     }
+    var dokJudul = null, dokBlok = null;
     if (u.aksi !== 'hapus') {
-      box.append(el('div', 'rw-sec', 'Dokumen usulan'));
-      box.append(blokDokumen((u.dok || []).map(function (k) { return { label: labelDok(u.jenis, k), sumber: { url: urlUsulan(u, k) } }; }), 0,
-        u.aksi === 'ubah' ? 'Tidak ada dokumen baru; dokumen riwayat lama tetap dipakai.' : 'Tidak ada dokumen.'));
+      dokJudul = el('div', 'rw-sec', 'Dokumen usulan');
+      dokBlok = blokDokumen((u.dok || []).map(function (k) { return { label: labelDok(u.jenis, k), sumber: { url: urlUsulan(u, k) } }; }), 0,
+        u.aksi === 'ubah' ? 'Tidak ada dokumen baru; dokumen riwayat lama tetap dipakai.' : 'Tidak ada dokumen.');
+    } else {
+      // usulan hapus: tampilkan dokumen riwayat yang akan dihapus
+      var rh = BARIS.filter(function (r) { return r.jenis === u.jenis && r.id_rw && r.id_rw === u.ref_id; })[0];
+      dokJudul = el('div', 'rw-sec', 'Dokumen riwayat');
+      dokBlok = blokDokumen(rh ? (rh.dok || []).map(function (d) { return { label: d[0], sumber: { url: urlRiwayat(rh, d[1]) } }; }) : [], 0, 'Tidak ada dokumen.');
     }
+    if (HP.matches) box.append(dokJudul, dokBlok);
     if (u.jejak && u.jejak.length) {
       box.append(el('div', 'rw-sec', 'Riwayat verifikasi'));
       var ol = el('ol', 'rw-jejak');
@@ -1626,7 +1633,15 @@
       }
     }
     kaki.push(tombol('Tutup', '', null, tutupModal));
-    bukaModal('Usulan ' + (AKSI[u.aksi] || [u.aksi])[0].toLowerCase() + ' ' + String(u.jenis_label || '').toLowerCase(), box, kaki, { drawer: true, fokus: $('[data-tutup]', modalEl) });
+    var judulU = 'Usulan ' + (AKSI[u.aksi] || [u.aksi])[0].toLowerCase() + ' ' + String(u.jenis_label || '').toLowerCase();
+    if (HP.matches) { bukaModal(judulU, box, kaki, { drawer: true, fokus: $('[data-tutup]', modalEl) }); return; }
+    // desktop: popup di tengah seperti detail riwayat, rincian di kiri & dokumen (tab) di kanan
+    box.classList.add('rw-dua');
+    var kiri = el('div', 'rw-dua__kiri'), kanan = el('div', 'rw-dua__kanan');
+    kiri.append.apply(kiri, Array.prototype.slice.call(box.childNodes));
+    kanan.append(dokJudul, dokBlok);
+    box.append(kiri, kanan);
+    bukaModal(judulU, box, kaki, { kelas: 'rw-modal--besar', fokus: $('[data-tutup]', modalEl) });
   }
 
   function batalkan(u) {
