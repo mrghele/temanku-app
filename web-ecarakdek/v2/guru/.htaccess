@@ -1,0 +1,28 @@
+# PORTAL GURU e-CARAKDEK (/v2/guru) — tampilan TEMANKU untuk guru/tendik
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Aturan /v2/.htaccess tidak berlaku di sini (RewriteEngine sendiri), jadi pengamanan diulang:
+  RewriteRule (^|/)\.(?!well-known(?:/|$)) - [F,L,NC]
+  RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK|PUT|DELETE|PATCH|CONNECT)$ [NC]
+  RewriteRule ^ - [F,L]
+  # Library, konfigurasi & log tidak boleh diakses dari web
+  RewriteRule ^(?:app|includes|config|storage)(?:/|$) - [F,L,NC]
+  RewriteRule ^assets/.*\.(?:php\d?|phtml|phar|pl|py|cgi)$ - [F,L,NC]
+</IfModule>
+
+<FilesMatch "(?i)(^\.env|\.(bak|old|orig|sql|log|lock|swp|dist|json)$|~$)">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(self)"
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/wasm .wasm
+  AddType text/javascript .mjs
+</IfModule>

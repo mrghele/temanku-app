@@ -1,6 +1,13 @@
 <?php
 require_once __DIR__ . '/app/bootstrap.php';
 
+// Guru/tendik (peran pegawai) memakai Portal Guru /v2/guru (tampilan seperti TEMANKU, tema pink).
+// Super admin & admin sekolah tetap memakai tampilan e-Carakdek ini.
+if (($_SESSION['role'] ?? '') === 'pegawai') {
+    header('Location: ' . APP_URL . 'guru/');
+    exit;
+}
+
 $tahun = date('Y');
 $page  = isset($_GET['page']) ? (string)$_GET['page'] : 'dashboard';
 $page  = trim($page, '/');

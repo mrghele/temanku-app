@@ -103,4 +103,8 @@ func RegisterEcarakdekWebRoutes(r *gin.Engine) {
 	// ABSENSI: presensi guru/tendik (disimpan di carakdek_web), rekap, rekam wajah,
 	// cuti & dinas luar, titik koordinat sekolah, pengajuan lokasi tambahan
 	absensi.RegisterEcarakdekWebAbsen(web)
+
+	// PORTAL GURU (/v2/guru): tampilan & fungsi TEMANKU untuk guru/tendik - beranda, absen wajah, rekap,
+	// claim, cuti, dinas, notifikasi (lihat absensi/ecarakdek_portal.go)
+	absensi.RegisterEcarakdekPortal(web)
 }
