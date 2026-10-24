@@ -414,3 +414,96 @@ body.rw-modal-buka{overflow:hidden}
 .select2-container--default .select2-results__option[aria-disabled=true]{color:#cbd5e1}
 .rw-f.is-error .select2-selection--single{border-color:var(--rw-merah)}
 .rw-f input[readonly]:not(.rw-baca),.rw-f textarea[readonly]{background:#f6f7f9;color:#475467;cursor:default}
+
+/* ---------- Kartu mobile 3 baris & badge kecil ---------- */
+.rw-mini{display:inline-block;vertical-align:1px;padding:1px 6px;border-radius:4px;background:#13a085;color:#fff;font-size:10.5px;font-weight:700;line-height:1.5;white-space:nowrap}
+.rw-mini--kuning{background:#fdb022;color:#3b2500}
+.rw-card__b3{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:3px;font-size:11.5px;color:#475467}
+.rw-lengkap{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap;border:1px solid transparent}
+.rw-lengkap::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.rw-lengkap.is-ok{background:#ecfdf3;border-color:#abefc6;color:#067647}
+.rw-lengkap.is-kurang{background:#fffaeb;border-color:#fedf89;color:#b54708}
+.rw-lengkap.is-proses{background:#eff8ff;border-color:#b2ddff;color:#175cd3}
+.rw-lengkap--kecil{padding:0 7px;font-size:10.5px;gap:4px}
+.rw-lengkap--kecil::before{width:6px;height:6px}
+
+/* ---------- Tabel riwayat (desktop, seperti SIMPEG) ---------- */
+.rw-tabel__judul{margin:14px 0 8px;font-size:13.5px;font-weight:800;color:var(--rw-teks)}
+.rw-tabel__judul:first-child{margin-top:0}
+.rw-tabel-wrap{overflow-x:auto;border:1px solid var(--rw-garis);border-radius:8px;background:#fff}
+.rw-tabel{width:100%;border-collapse:collapse;font-size:13px;color:#1f2937}
+.rw-tabel thead th{background:#13a085;color:#fff;font-weight:700;text-align:left;padding:11px 12px;white-space:nowrap;border-right:1px solid rgba(255,255,255,.18)}
+.rw-tabel thead th:last-child{border-right:0}
+.rw-tabel tbody td{padding:10px 12px;border-top:1px solid #e9eef1;vertical-align:middle;line-height:1.4}
+.rw-tabel tbody tr:nth-child(even) td{background:#f7f9fa}
+.rw-tabel tbody tr{cursor:pointer}
+.rw-tabel tbody tr:hover td{background:#eef8f6}
+.rw-tabel__no{width:44px;text-align:center!important}
+.rw-tabel__tengah{text-align:center!important;white-space:nowrap}
+.rw-tabel__dok{white-space:nowrap}
+.rw-dokbtn{display:inline-flex;align-items:center;gap:4px;height:22px;margin:1px 2px;padding:0 7px;border:0;border-radius:4px;background:#13a085;color:#fff;font:700 11px/1 inherit;cursor:pointer}
+.rw-dokbtn:hover{background:#0e7f69}
+.rw-dokbtn i{font-size:11px}
+.rw-aksi{display:inline-flex;gap:6px}
+.rw-aksi__btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#334155;font-size:14px;cursor:pointer}
+.rw-aksi__btn:hover{background:#f1f5f9}
+.rw-aksi__btn--edit{border-color:#f5b301;color:#b54708}
+.rw-aksi__btn--edit:hover{background:#fffaeb}
+.rw-aksi__btn--hapus{border-color:#f04438;color:#d92d20}
+.rw-aksi__btn--hapus:hover{background:#fef3f2}
+.rw-ringkas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 14px;padding:14px 18px;border:1px solid #cfe9e4;border-radius:8px;background:#effaf7}
+.rw-ringkas small{display:block;color:#475467;font-size:12px}
+.rw-ringkas strong{display:block;margin-top:2px;font-size:14px;color:var(--rw-teks)}
+
+/* ---------- Desktop: tab kategori di atas (seperti tab detail pegawai SIMPEG) ---------- */
+@media (min-width:821px){
+  .rw-layout{display:block;margin-top:14px;padding:4px 20px 20px;background:#fff;border:1px solid var(--rw-garis);border-radius:12px;box-shadow:var(--rw-bayang)}
+  .rw-nav{position:static;flex-direction:row;flex-wrap:wrap;gap:0 2px;padding:0;margin:0 0 18px;background:none;border:0;border-bottom:1px solid var(--rw-garis);border-radius:0;box-shadow:none}
+  .rw-nav__item{gap:6px;margin-bottom:-1px;padding:12px 12px 11px;border-radius:0;border-bottom:2px solid transparent;font-size:13px;font-weight:500;color:#475467}
+  .rw-nav__item:hover{background:none;color:var(--rw-utama-2)}
+  .rw-nav__item.is-aktif{background:none;color:var(--rw-utama-2);border-bottom-color:var(--rw-utama);font-weight:700}
+  .rw-nav__ico{width:auto;height:auto;background:none!important;color:inherit!important;font-size:14px;border-radius:0}
+  .rw-nav__label{flex:none}
+  .rw-nav__num{display:none}
+  .rw-nav__dot{top:-4px;right:-6px;width:8px;height:8px}
+  .rw-panel{border:0;border-radius:0;box-shadow:none;overflow:visible}
+  .rw-panel__head{padding:0 0 12px}
+  .rw-panel__title h2{font-size:15px}
+  .rw-toolbar{gap:8px}
+  .rw-toolbar .rw-pill--utama{order:-1}
+  .rw-pill{height:34px;padding:0 13px;font-size:13px;border-radius:6px}
+  .rw-pill--kuning{background:#f04438;border-color:#f04438;color:#fff}          /* Sync dari SIASN */
+  .rw-pill--kuning:hover{background:#d92d20;border-color:#d92d20;color:#fff}
+  .rw-pill--biru{background:#fff;border-color:#d0d5dd;color:#344054}
+  .rw-pill--utama{background:#13a085;border-color:#13a085}
+  .rw-cari-bar{padding:0 0 12px}
+  .rw-list{padding:0;display:block}
+  .rw-usulan{margin-bottom:12px;border:1px solid var(--rw-garis);border-radius:8px}
+  .rw-pager{padding:12px 0 0;border-top:0}
+  .rw-panel > .rw-catatan{padding:12px 0 0;border-top:0;background:none}
+}
+
+/* ---------- Identitas ---------- */
+.rw-idt__isi{display:flex;flex-direction:column}
+.rw-idt__gol{display:inline-flex;align-items:center;gap:4px;margin-top:5px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.2);font-style:normal;font-size:11px;font-weight:700}
+.rw-idt__aksi{display:flex;gap:8px;margin-top:14px}
+@media (min-width:821px){
+  .rw-idt{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start;padding:0}
+  .rw-idt__head{position:sticky;top:80px;flex-direction:column;gap:10px;margin:0;padding:16px;text-align:center;background:#fff;color:var(--rw-teks);border:1px solid var(--rw-garis);border-radius:10px}
+  .rw-idt__head img{width:100%;max-width:210px;height:260px;object-fit:cover;border:0;border-radius:12px;background:#c9f3ea}
+  .rw-idt__head strong{font-size:14.5px}
+  .rw-idt__head span{color:var(--rw-redup);font-size:12px}
+  .rw-idt__gol{background:#e7f8ef;color:#067647}
+  .rw-idt__isi{gap:14px}
+  .rw-grup{margin:0;padding:12px 16px 14px;border-radius:10px}
+  .rw-grup--ubah{order:9}                                  /* SIMPEG: Data SIASN dulu, lalu data yang dapat diubah */
+  .rw-grup--siasn .rw-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:8px}
+  .rw-grup--siasn .rw-rows div{display:block;padding:8px 12px;border:1px solid #edf1f3;border-radius:8px;background:#f8fafb}
+  .rw-grup--siasn .rw-rows dt{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .rw-grup--siasn .rw-rows dt i{display:none}
+  .rw-grup--siasn .rw-rows dd{margin-top:3px;font-size:13.5px}
+  .rw-idt--inline [data-rw="ubah-identitas"]{display:none}
+  #rw-idt-form .rw-form{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #rw-idt-form .rw-f--penuh{grid-column:1/-1}
+  #rw-idt-form > div > .rw-info:first-child{margin-top:8px}
+}

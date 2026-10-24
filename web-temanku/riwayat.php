@@ -126,31 +126,37 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
     <div class="rw-empty rw-empty--gagal"><i class="bi bi-cloud-slash"></i><p>Identitas belum dapat dimuat dari SIMPEG<?= isset($GLOBALS['riwayat_api_kode']) ? ' (kode ' . (int)$GLOBALS['riwayat_api_kode'] . ')' : '' ?>.</p></div>
   <?php else: $ub = $idt['ubah']; ?>
     <div class="rw-idt">
-      <div class="rw-idt__head">
+      <aside class="rw-idt__head">
         <img src="<?= e($u['foto'] ? url('foto_saya.php') . '?v=' . substr(md5((string)$u['foto']), 0, 10) : url('lama/assets/images/user.png')) ?>" onerror="this.onerror=null;this.src='<?= e(url('lama/assets/images/user.png')) ?>'" alt="">
-        <div><strong><?= e($idt['nama']) ?></strong><span><?= e($idt['nip']) ?></span></div>
-      </div>
-      <section class="rw-grup">
-        <h3><i class="bi bi-pencil-square"></i> Data yang dapat diubah</h3>
-        <dl class="rw-rows">
-          <?php foreach ([['Agama', $ub['agama'], 'bi-moon-stars'], ['Status perkawinan', $ub['kawin'], 'bi-heart'], ['Golongan darah', $ub['golDarah'], 'bi-droplet'],
-                          ['Tempat lahir', $ub['tempatLahir'], 'bi-geo-alt'], ['Nomor HP', $ub['noHp'], 'bi-phone'], ['Email pribadi', $ub['email'], 'bi-envelope'],
-                          ['Email dinas', $ub['emailGov'], 'bi-envelope-at'], ['Alamat', $ub['alamat'], 'bi-house']] as [$lbl, $nilai, $ik]): ?>
-            <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai !== '' ? $nilai : '–') ?></dd></div>
-          <?php endforeach; ?>
-        </dl>
-        <?php if (!$idt['ubahSiap']): ?><p class="rw-catatan">Pengubahan aktif setelah API TEMANKU (Go) diperbarui.</p><?php endif; ?>
-      </section>
-      <?php foreach ($idt['kelompok'] as $judul => $barisIdt): ?>
-        <section class="rw-grup">
-          <h3><i class="bi bi-lock"></i> <?= e($judul) ?> <span class="rw-tag">SIASN</span></h3>
-          <dl class="rw-rows">
-            <?php foreach ($barisIdt as [$lbl, $nilai, $ik]): ?>
-              <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai) ?></dd></div>
+        <div>
+          <strong><?= e($idt['nama']) ?></strong><span><?= e($idt['nip']) ?></span>
+          <?php if (!empty($u['golongan'])): ?><em class="rw-idt__gol"><i class="bi bi-award"></i> Gol. <?= e($u['golongan']) ?></em><?php endif; ?>
+        </div>
+      </aside>
+      <div class="rw-idt__isi">
+        <section class="rw-grup rw-grup--ubah" id="rw-idt-ubah">
+          <h3><i class="bi bi-pencil-square"></i> Data yang dapat diubah</h3>
+          <dl class="rw-rows" id="rw-idt-nilai">
+            <?php foreach ([['Agama', $ub['agama'], 'bi-moon-stars'], ['Status perkawinan', $ub['kawin'], 'bi-heart'], ['Golongan darah', $ub['golDarah'], 'bi-droplet'],
+                            ['Tempat lahir', $ub['tempatLahir'], 'bi-geo-alt'], ['Nomor HP', $ub['noHp'], 'bi-phone'], ['Email pribadi', $ub['email'], 'bi-envelope'],
+                            ['Email dinas', $ub['emailGov'], 'bi-envelope-at'], ['Alamat', $ub['alamat'], 'bi-house']] as [$lbl, $nilai, $ik]): ?>
+              <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai !== '' ? $nilai : '–') ?></dd></div>
             <?php endforeach; ?>
           </dl>
+          <div id="rw-idt-form"></div>
+          <?php if (!$idt['ubahSiap']): ?><p class="rw-catatan">Pengubahan aktif setelah API TEMANKU (Go) diperbarui.</p><?php endif; ?>
         </section>
-      <?php endforeach; ?>
+        <?php foreach ($idt['kelompok'] as $judul => $barisIdt): ?>
+          <section class="rw-grup rw-grup--siasn">
+            <h3><i class="bi bi-lock"></i> <?= e($judul) ?> <span class="rw-tag">SIASN · hanya baca</span></h3>
+            <dl class="rw-rows">
+              <?php foreach ($barisIdt as [$lbl, $nilai, $ik]): ?>
+                <div><dt><i class="bi <?= e($ik) ?>"></i><?= e($lbl) ?></dt><dd><?= e($nilai) ?></dd></div>
+              <?php endforeach; ?>
+            </dl>
+          </section>
+        <?php endforeach; ?>
+      </div>
     </div>
   <?php endif; ?>
 </section>

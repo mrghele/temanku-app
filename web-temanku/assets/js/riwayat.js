@@ -410,7 +410,8 @@
   /* ---------- identitas: Sync = "Segarkan data"; Ubah = form seperti SIMPEG ---------- */
   if (CFG.kategori === 'identitas') {
     var IDT = CFG.idt || {};
-    function bukaUbahIdentitas() {
+    /** Form ubah identitas: drawer (mobile) atau langsung di halaman bila target diberikan (desktop, seperti SIMPEG). */
+    function bukaUbahIdentitas(target) {
       var form = el('form', 'rw-form'); form.noValidate = true;
       var awal = {};
       function f(k, label, inp, opsi) {
@@ -542,8 +543,14 @@
       form.addEventListener('input', function (e) { var w = e.target.closest('.rw-f'); if (w) { w.classList.remove('is-error'); $$('.rw-f__err', w).forEach(function (x) { x.remove(); }); } segar(); });
       form.addEventListener('change', segar);
 
-      var simpan = tombol('Simpan', 'rw-btn--primary', 'bi-check2');
+      var simpan = tombol(target ? 'Simpan perubahan' : 'Simpan', 'rw-btn--primary', 'bi-check2');
       simpan.disabled = true;
+      var batalI = target ? tombol('Batal', '', null, function () { bukaUbahIdentitas(target); }) : null;
+      var kunciF = function (ya, teks) {
+        if (!target) { sibuk(ya, simpan, teks); return; }
+        simpan.disabled = batalI.disabled = ya;
+        if (ya) { simpan.dataset.asli = $('span', simpan).textContent; $('span', simpan).textContent = teks; } else $('span', simpan).textContent = simpan.dataset.asli || 'Simpan perubahan';
+      };
       function jalan(e) {
         if (e) e.preventDefault();
         var d = beda();
@@ -551,7 +558,7 @@
         var fd = fdBaru('identitas_simpan');
         Object.keys(d).forEach(function (k) { fd.set(k, d[k]); });
         if (!bknW.hidden && cb.checked) fd.set('kirim_bkn', '1');
-        sibuk(true, simpan, 'Menyimpan…');
+        kunciF(true, 'Menyimpan…');
         post(fd).then(function (j) {
           modalSibuk = false;
           badge('Identitas tersimpan di SIMPEG', j.message, true, true);
@@ -559,7 +566,7 @@
           else if (j.bkn && j.bkn.message) badge('Hanya disimpan di SIMPEG', j.bkn.message, true, true);
           muatUlang();
         }).catch(function (err) {
-          sibuk(false, simpan);
+          kunciF(false);
           var errs = (err.data && err.data.errors) || {};
           if (err.data && err.data.field && !errs[err.data.field]) errs[err.data.field] = err.message;
           Object.keys(errs).forEach(function (k) {
@@ -576,9 +583,25 @@
       simpan.addEventListener('click', jalan);
       var box = el('div');
       box.append(info('Perubahan langsung disimpan ke SIMPEG seperti menu Identitas SIMPEG. Isian bertanda BKN dapat ikut dikirim ke SIASN. Data lain (NIP, NIK, jabatan, unit) mengikuti SIASN.', 'biru', 'bi-info-circle'), form);
-      bukaModal('Ubah identitas', box, [tombol('Batal', '', null, tutupModal), simpan], { drawer: true });
+      if (target) {
+        var aksiI = el('div', 'rw-idt__aksi'); aksiI.append(batalI, simpan);
+        box.append(aksiI);
+        target.replaceChildren(box);
+      } else bukaModal('Ubah identitas', box, [tombol('Batal', '', null, tutupModal), simpan], { drawer: true });
       pasangSemuaSelect(form);
     }
+    // desktop: form identitas langsung tampil di halaman (seperti SIMPEG); mobile: tombol Ubah -> drawer
+    var idtTarget = $('#rw-idt-form'), idtNilai = $('#rw-idt-nilai'), idtPanel = $('#rw-panel');
+    function aturIdtInline() {
+      if (!idtTarget || !$('[data-rw="ubah-identitas"]')) return;
+      var inline = !HP.matches;
+      idtPanel.classList.toggle('rw-idt--inline', inline);
+      if (idtNilai) idtNilai.hidden = inline;
+      if (inline && !idtTarget.firstChild) bukaUbahIdentitas(idtTarget);
+      if (!inline) idtTarget.replaceChildren();
+    }
+    aturIdtInline();
+    if (HP.addEventListener) HP.addEventListener('change', aturIdtInline);
     document.addEventListener('click', function (e) {
       var b = e.target.closest && e.target.closest('[data-rw]');
       if (!b) return;
@@ -711,6 +734,13 @@
     var awal = (daftar.hal - 1) * daftar.per;
     var hal = data.slice(awal, awal + daftar.per);
     listEl.classList.toggle('rw-list--tabel', !HP.matches);
+    if (!HP.matches && CFG.kategori === 'pendidikan' && !q && daftar.hal === 1 && BARIS[0]) {   // ringkasan seperti SIMPEG
+      var t0 = BARIS[0], k0 = t0.kolom || [], rk = el('div', 'rw-ringkas');
+      [['Tingkat Pendidikan Terakhir', (k0[0] || [])[1]], ['Pendidikan Terakhir', (k0[1] || [])[1] || t0.judul], ['Tanggal Lulus', t0.waktu]].forEach(function (p) {
+        var d = el('div'); d.append(el('small', '', p[0]), el('strong', '', p[1] || '-')); rk.append(d);
+      });
+      listEl.append(rk);
+    }
     if (HP.matches) hal.forEach(function (r) { listEl.append(kartu(r)); });
     else {
       // desktop: satu tabel per jenis (mis. Diklat struktural & Diklat/kursus), seperti SIMPEG
