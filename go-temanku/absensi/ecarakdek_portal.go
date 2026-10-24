@@ -52,6 +52,7 @@ func RegisterEcarakdekPortal(web *gin.RouterGroup) {
 	g.GET("/portal/attendance", PortalAttendance)
 	g.POST("/portal/attendance/:action", PortalCheckAttendance)
 	g.GET("/portal/akses", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"success": true}) })
+	g.GET("/portal/cek-hari-kerja", akun(func(c *gin.Context, nip, _, unit string) { cekHariKerjaSekolah(c, nip, unit) }))
 	g.GET("/portal/absen/metode", akun(func(c *gin.Context, _, _, unit string) {
 		c.JSON(http.StatusOK, gin.H{"metode": metodeAbsen(unit)})
 	}))

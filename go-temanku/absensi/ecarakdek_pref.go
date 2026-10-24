@@ -628,7 +628,14 @@ func init() {
 	rekapData.pegawai = func(unit, nip string) ([]rekapPegawai, error) {
 		list, err := rekapPegawaiAsli(unit, nip)
 		for i := range list {
-			if s := list[i].SubUnit; s != "" && s != list[i].Unit && jenjangUnit(s) != "" {
+			if jenjangUnit(list[i].Unit) != "" {
+				continue
+			}
+			s := list[i].SubUnit
+			if (s == "" || jenjangUnit(s) == "") && nip != "" {
+				s = unitByNip(list[i].NIP) // satu pegawai (portal): unit yang sama dengan mesin absen
+			}
+			if s != "" && s != list[i].Unit && jenjangUnit(s) != "" {
 				list[i].Unit = s
 			}
 		}
@@ -1597,4 +1604,65 @@ func ecarakdekDokDaftar(c *gin.Context) {
 	// mengganti: dokumen lama ref ini DIHAPUS (baris & file, di server e-Carakdek maupun repository APEL)
 	repo.HapusDokumenLama(r.Ref, kategori, id)
 	c.JSON(http.StatusCreated, gin.H{"success": true, "id": id, "message": "Dokumen PDF tersimpan"})
+}
+
+// hariKerjaBuild: penanda versi pemeriksaan hari kerja sekolah (cek apakah build terbaru sudah berjalan).
+const hariKerjaBuild = "hk-sekolah-2026-10-24c"
+
+// cekHariKerjaSekolah: GET /portal/cek-hari-kerja (portal guru, data diri sendiri) - rantai penentu hari kerja
+// guru/tendik: unit absen, jenjang, pola, jadwal jenjang hari ini, serta unit & pola yang dipakai rekap.
+func cekHariKerjaSekolah(c *gin.Context, nip, unit string) {
+	now := simulasiData.now()
+	hari := namaHari[now.Weekday()]
+	all := polaSemua()
+	polaInfo := func(codes []string) []gin.H {
+		out := []gin.H{}
+		for _, k := range codes {
+			p := all[k]
+			out = append(out, gin.H{"kode": k, "hari_kerja": p.HariKerja, "reguler": p.reguler()})
+		}
+		return out
+	}
+	jadwalJenjang := func(u string) []string {
+		out := []string{}
+		j := jenjangUnit(u)
+		for k := range jadwalSekolahSemua() {
+			if j != "" && strings.HasPrefix(k, j+"|") {
+				out = append(out, k)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	absen := gin.H{"unit": unit, "unit_nama": absenData.unitName(unit), "jenjang": jenjangUnit(unit),
+		"hari_kerja_jenjang": hariKerjaJenjang(jenjangUnit(unit)), "jadwal_jenjang": jadwalJenjang(unit)}
+	if codes, err := polaUnitBerjenjang(unit); err == nil {
+		absen["pola"] = polaInfo(codes)
+		for _, k := range codes {
+			if p := all[k]; p.reguler() {
+				ctx := absenCtx{nip: nip, unit: unit, hari: hari}
+				jm, e := ctx.jadwalReguler(p.HariKerja, "masuk")
+				absen["jadwal_hari_ini"] = gin.H{"hari": hari, "hari_kerja": p.HariKerja, "ada": jm.Found, "buka": jm.Begin, "tutup": jm.End, "galat": e != nil}
+				break
+			}
+		}
+	} else {
+		absen["pola_galat"] = err.Error()
+	}
+	rekap := gin.H{}
+	if list, err := rekapData.pegawai("", nip); err == nil && len(list) > 0 {
+		p := list[0]
+		rekap["unit"], rekap["subunit"], rekap["unit_nama"] = p.Unit, p.SubUnit, absenData.unitName(p.Unit)
+		rekap["jenjang"] = jenjangUnit(p.Unit)
+		if codes, err := polaUnitBerjenjang(p.Unit); err == nil {
+			rekap["pola"] = polaInfo(codes)
+		}
+		if k := konteksRekapSekarang(); k != nil {
+			rekap["pola_konteks"] = polaInfo(k.polaBerjenjang(p.Unit))
+		}
+	} else if err != nil {
+		rekap["galat"] = err.Error()
+	}
+	c.JSON(http.StatusOK, gin.H{"build": hariKerjaBuild, "nip": nip, "hari": hari, "modul_ecarakdek": ecarakdekNipModul(nip),
+		"ada_jadwal_sekolah": adaJadwalSekolah(), "absen": absen, "rekap": rekap})
 }
