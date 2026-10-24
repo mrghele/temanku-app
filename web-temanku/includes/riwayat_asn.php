@@ -113,7 +113,7 @@ function riwayat_api_get(string $base, string $endpoint): array
  */
 function riwayat_data(array $pegawai, string $kategori, bool $segar = false): ?array
 {
-    $kunci = 'v4:' . $pegawai['pns_id'] . ':' . $kategori;   // v4: baris memuat kolom tabel & kelengkapan
+    $kunci = 'v5:' . $pegawai['pns_id'] . ':' . $kategori;   // v4: baris memuat kolom tabel & kelengkapan
     $cache = $_SESSION['riwayat_cache'][$kunci] ?? null;
     if (!$segar && is_array($cache) && $cache['sampai'] > time()) return $cache['data'];
 
@@ -235,7 +235,8 @@ function rw_baris(array $g, string $judul, string $sub, string $waktu, string $u
         // Baris info kosong tidak ditampilkan.
         'info'  => array_values(array_filter($info, static function (array $i): bool { return trim((string)$i[1]) !== ''; })),
         'dok'   => array_values($dok),
-        'kolom' => array_map(static function (array $c): array { return [$c[0], trim((string)$c[1]), (string)($c[2] ?? '')]; }, $x['kolom'] ?? []),
+        // sel tabel: [judul, teks, badge, keterangan kecil di bawah, badge di atas teks?]
+        'kolom' => array_map(static function (array $c): array { return [$c[0], trim((string)$c[1]), (string)($c[2] ?? ''), (string)($c[3] ?? ''), !empty($c[4])]; }, $x['kolom'] ?? []),
         'badge' => (string)($x['badge'] ?? ''),
         'b3'    => (string)($x['b3'] ?? $waktu),
         'lengkap' => isset($x['wajib']) ? !$kurang : null,
@@ -272,7 +273,7 @@ function riwayat_baris_diklatpim(array $g): array
          ['Jumlah jam', (int)($g['jam'] ?? 0) > 0 ? (int)$g['jam'] . ' JP' : ''],
          ['No. Sertifikat', rw_s($g, 'nomor')], ['Kompetensi', rw_s($g, 'jenis_kompetensi')]],
         [['Sertifikat', 'sertifikat']], 'Diklat Struktural',
-        ['kolom' => [['Diklat Struktural', rw_s($g, 'latihan_nama')], ['Penyelenggara', rw_s($g, 'penyelenggara')],
+        ['kolom' => [['Diklat Struktural', rw_s($g, 'latihan_nama'), '', rw_s($g, 'nomor') !== '' ? 'No. ' . rw_s($g, 'nomor') : ''], ['Penyelenggara', rw_s($g, 'penyelenggara')],
             ['Tanggal', implode(' s.d. ', array_filter([rw_tgl($mulai), rw_tgl(rw_s($g, 'tgl_selesai'))], 'strlen'))], ['Jam', (int)($g['jam'] ?? 0) > 0 ? (string)(int)$g['jam'] : '']],
          'b3' => implode(' · ', array_filter([rw_tgl($mulai) ?: rw_s($g, 'tahun'), 'Diklat Struktural'], 'strlen')), 'wajib' => ['sertifikat']]);
 }
@@ -286,7 +287,8 @@ function riwayat_baris_kursus(array $g): array
          ['Jumlah jam', (int)($g['jam'] ?? 0) > 0 ? (int)$g['jam'] . ' JP' : ''],
          ['No. Sertifikat', rw_s($g, 'no_sertifikat')], ['Lokasi', rw_s($g, 'lokasi')]],
         [['Sertifikat', 'sertifikat']], rw_s($g, 'jenis_diklat_nama') ?: rw_s($g, 'jenis_kursus_nama'),
-        ['kolom' => [['Nama Diklat / Kursus', rw_s($g, 'nama')], ['Jenis', rw_s($g, 'jenis_diklat_nama') ?: rw_s($g, 'jenis_kursus_nama')],
+        ['kolom' => [['Diklat / Kursus', rw_s($g, 'nama'), rw_s($g, 'jenis_diklat_nama') ?: rw_s($g, 'jenis_kursus_nama'),
+                rw_s($g, 'no_sertifikat') !== '' ? 'No. ' . rw_s($g, 'no_sertifikat') : '', true],
             ['Penyelenggara', rw_s($g, 'penyelenggara')],
             ['Tanggal', implode(' s.d. ', array_filter([rw_tgl($mulai), rw_tgl(rw_s($g, 'tgl_selesai'))], 'strlen'))], ['Jam', (int)($g['jam'] ?? 0) > 0 ? (string)(int)$g['jam'] : '']],
          'b3' => implode(' · ', array_filter([rw_tgl($mulai) ?: rw_s($g, 'tahun'), rw_s($g, 'jenis_diklat_nama') ?: rw_s($g, 'jenis_kursus_nama')], 'strlen')), 'wajib' => ['sertifikat']]);
@@ -535,4 +537,13 @@ function riwayat_identitas(array $pegawai, bool $segar = false): ?array
         'ubah' => $ubah, 'ubahSiap' => $siap];
     $_SESSION['riwayat_identitas'] = ['pns_id' => $pegawai['pns_id'], 'sampai' => time() + RIWAYAT_CACHE_TTL, 'data' => $data];
     return $data;
+}
+
+/** Judul kolom tabel per jenis (untuk tabel kosong di desktop). */
+function riwayat_kolom_judul(string $jenis): array
+{
+    $fn = $jenis === 'tugas' ? 'riwayat_baris_jabatan' : 'riwayat_baris_' . $jenis;
+    if (!function_exists($fn)) return [];
+    $b = $fn($jenis === 'tugas' ? ['jenis_penugasan' => 'TT'] : []);
+    return array_column($b['kolom'], 0);
 }

@@ -237,6 +237,9 @@
       alat.append(penuh);
     }
     if (sumber.url) {
+      var unduh = el('a', 'rw-btn rw-btn--primary rw-btn--xs rw-viewer__unduh'); unduh.href = sumber.url; unduh.download = (judul || 'dokumen').replace(/[^\w\- ]+/g, '') + '.pdf';
+      unduh.append(ikon('bi-download'), el('span', '', 'Unduh'));
+      alat.append(unduh);
       var tab = el('a', 'rw-ico'); tab.href = sumber.url; tab.target = '_blank'; tab.rel = 'noopener'; tab.title = 'Buka di tab baru'; tab.setAttribute('aria-label', 'Buka di tab baru'); tab.append(ikon('bi-box-arrow-up-right'));
       alat.append(tab);
     }
@@ -685,8 +688,11 @@
       tr2.append(el('td', 'rw-tabel__no', String(nomorAwal + i + 1)));
       if ((r.kolom || []).length) r.kolom.forEach(function (c, j) {
         var td = el('td', j === 0 ? 'rw-tabel__utama' : '');
-        td.append(document.createTextNode(c[1] || '-'));
-        if (c[2] && c[2] !== c[1]) td.append(document.createTextNode(' '), el('span', 'rw-mini', c[2]));
+        var bd = c[2] && c[2] !== c[1] ? el('span', 'rw-mini' + (c[4] ? ' rw-mini--biru' : ''), c[2]) : null;
+        if (bd && c[4]) { td.append(bd, el('br')); bd = null; }                 // badge di atas (mis. jenis diklat)
+        td.append(c[4] && j === 0 ? el('b', '', c[1] || '-') : document.createTextNode(c[1] || '-'));
+        if (bd) td.append(document.createTextNode(' '), bd);
+        if (c[3]) td.append(el('div', 'rw-tabel__sub', c[3]));
         if (j === 0 && r.usulan) td.append(document.createTextNode(' '), el('span', 'rw-mini rw-mini--kuning', 'Usulan diproses'));
         tr2.append(td);
       });
@@ -714,6 +720,131 @@
     t.append(tb); wrap.append(t);
     return wrap;
   }
+  /* ---------- desktop: satu bagian per jenis (seperti tab SIMPEG): Tambah, Sync, Tampilkan Usulan, segarkan ---------- */
+  function pagerKe(target, total, hal, per, q, pilih) {
+    target.replaceChildren();
+    var jml = Math.max(1, Math.ceil(total / per));
+    target.hidden = total <= per;
+    var awal = (hal - 1) * per;
+    target.append(el('span', 'rw-pager__info', (awal + 1) + '–' + Math.min(total, awal + per) + ' dari ' + total + (q ? ' hasil' : ' riwayat')));
+    if (jml < 2) return;
+    var nav = el('span', 'rw-pager__nav');
+    var btn = function (isi, h, aktif, label) {
+      var b = el('button', 'rw-pager__btn' + (aktif ? ' is-aktif' : '')); b.type = 'button';
+      if (typeof isi === 'string') b.textContent = isi; else b.append(isi);
+      if (label) b.setAttribute('aria-label', label);
+      if (aktif) b.setAttribute('aria-current', 'page');
+      b.disabled = h < 1 || h > jml;
+      b.addEventListener('click', function () { pilih(h); });
+      nav.append(b);
+    };
+    btn(ikon('bi-chevron-left'), hal - 1, false, 'Sebelumnya');
+    var nomor = [1, hal - 1, hal, hal + 1, jml].filter(function (h, i, a) { return h >= 1 && h <= jml && a.indexOf(h) === i; }).sort(function (a, b) { return a - b; });
+    nomor.forEach(function (h, i) {
+      if (i > 0 && h - nomor[i - 1] > 1) nav.append(el('span', 'rw-pager__elip', '…'));
+      btn(String(h), h, h === hal);
+    });
+    btn(ikon('bi-chevron-right'), hal + 1, false, 'Berikutnya');
+    target.append(nav);
+  }
+  function ringkasUsulan(u) {
+    var d = u.data || {}, l = u.data_lama || {};
+    return [d.nama || d.latihan_nama || d.harga_nama || d.jabatan_nama || d.unor_nama || d.tk_pendidikan_nama || l.nama || l.latihan_nama || l.jabatan_nama || '',
+      d.penyelenggara || d.nama_sekolah || d.unor_nama || '', d.tahun || (d.tgl_mulai || d.tmt_jabatan || d.tgl_sk || '').slice(0, 4) || d.no_sk || ''].filter(Boolean).filter(function (x, i, a) { return a.indexOf(x) === i; }).join(' · ') || '-';
+  }
+  var WARNA_AKSI = { tambah: 'hijau', ubah: 'kuning', hapus: 'merah' };
+  function tabelUsulan(jenis) {
+    var list = USULAN.filter(function (u) { return u.jenis === jenis; });
+    var wrap = el('div', 'rw-tabel-wrap'), t = el('table', 'rw-tabel rw-tabel--usulan'), tr = el('tr');
+    ['Diajukan', 'Usulan', 'Ringkasan', 'Status', 'Aksi'].forEach(function (h, i) { tr.append(el('th', i === 1 || i >= 3 ? 'rw-tabel__tengah' : '', h)); });
+    var th = el('thead'); th.append(tr); t.append(th);
+    var tb = el('tbody');
+    if (CFG.usulanGagal || !list.length) {
+      var tr0 = el('tr', 'rw-tabel__kosong'), td0 = el('td', '', CFG.usulanGagal ? 'Daftar usulan belum dapat dimuat dari SIMPEG.' : 'Belum ada usulan.'); td0.colSpan = 5; tr0.append(td0); tb.append(tr0);
+    }
+    list.forEach(function (u) {
+      var r = el('tr'); r.dataset.uid = u.id;
+      var d1 = el('td'); d1.append(el('b', '', tgl(u.diajukan_at)), el('div', 'rw-muted', u.diverifikasi_at ? 'Diverifikasi ' + tgl(u.diverifikasi_at) : 'oleh Anda'));
+      var d2 = el('td', 'rw-tabel__tengah'); d2.append(el('span', 'rw-mini rw-mini--' + (WARNA_AKSI[u.aksi] || 'abu'), (AKSI[u.aksi] || [u.aksi])[0]));
+      var d3 = el('td'); d3.append(document.createTextNode(ringkasUsulan(u)));
+      if (u.catatan) d3.append(el('div', 'rw-muted', 'Catatan: ' + u.catatan));
+      var d4 = el('td', 'rw-tabel__tengah'); d4.append(statusTag(u.status));
+      var d5 = el('td', 'rw-tabel__tengah'), ak = el('div', 'rw-aksi');
+      var mk = function (aksi, ik, cls, lbl) { var b = el('button', 'rw-aksi__btn ' + cls); b.type = 'button'; b.dataset.rw = aksi; b.dataset.uid = u.id; b.title = lbl; b.setAttribute('aria-label', lbl); b.append(ikon(ik)); ak.append(b); };
+      mk('u-lihat', 'bi-eye', '', 'Lihat usulan');
+      if (bisaUbahUsulan(u)) {
+        if ((IZIN[u.jenis] || {})[u.aksi]) mk('u-edit', 'bi-pencil', 'rw-aksi__btn--edit', u.status === 'dikembalikan' ? 'Perbaiki usulan' : 'Edit usulan');
+        mk('u-batal', 'bi-trash3', 'rw-aksi__btn--hapus', 'Batalkan usulan');
+      }
+      d5.append(ak);
+      r.append(d1, d2, d3, d4, d5);
+      tb.append(r);
+    });
+    t.append(tb); wrap.append(t);
+    return wrap;
+  }
+  function editUsulan(u) {
+    if (u.aksi === 'hapus') bukaHapus(BARIS.filter(function (r) { return r.jenis === u.jenis && r.id_rw === u.ref_id; })[0] || null, u);
+    else bukaForm(u.jenis, u.aksi, BARIS.filter(function (r) { return r.jenis === u.jenis && (r.id_rw === u.ref_id || u.jenis === 'cpns'); })[0] || null, u);
+  }
+  function tabelKosong(jenis) {
+    var wrap = el('div', 'rw-tabel-wrap'), t = el('table', 'rw-tabel'), tr = el('tr');
+    var jud = ((CFG.kolomJudul || {})[jenis] || []);
+    tr.append(el('th', 'rw-tabel__no', 'No'));
+    (jud.length ? jud : ['Riwayat']).forEach(function (h) { tr.append(el('th', '', h)); });
+    tr.append(el('th', 'rw-tabel__dok', 'Dokumen'), el('th', 'rw-tabel__tengah', 'Kelengkapan'), el('th', 'rw-tabel__tengah', 'Aksi'));
+    var th = el('thead'); th.append(tr); t.append(th);
+    var tb = el('tbody'), r = el('tr', 'rw-tabel__kosong'), td = el('td', '', daftar.q.trim() ? 'Tidak ada riwayat yang cocok dengan pencarian.' : 'Belum ada riwayat. Gunakan "Sync dari SIASN".');
+    td.colSpan = (jud.length || 1) + 4; r.append(td); tb.append(r); t.append(tb); wrap.append(t);
+    return wrap;
+  }
+  daftar.halJ = {}; daftar.modeJ = {};
+  if (CFG.bukaUsulan) USULAN.forEach(function (u) { daftar.modeJ[u.jenis] = 'usulan'; });
+  function renderSeksi(cocok, q) {
+    var urutan = (CFG.jenis || []).slice().sort(function (a, b) { return (a === 'diklatpim' ? -1 : 0) - (b === 'diklatpim' ? -1 : 0); });
+    urutan.forEach(function (j) {
+      var label = (CFG.jenisLabel || {})[j] || j;
+      var rows = BARIS.filter(function (r) { return r.jenis === j && cocok(r); });
+      var mode = daftar.modeJ[j] || 'riwayat';
+      var sek = el('section', 'rw-seksi'); sek.dataset.jenis = j;
+      var head = el('div', 'rw-seksi__head');
+      var h = el('h3', 'rw-seksi__judul'); h.append(ikon(CFG.ikon || 'bi-folder'), document.createTextNode(' ' + (/^riwayat/i.test(label) || j === 'cpns' ? label : 'Riwayat ' + label)));
+      var bar = el('div', 'rw-seksi__aksi');
+      var b = function (rw, teks, ik, cls, extra) {
+        var x = el('button', 'rw-sbtn ' + cls); x.type = 'button'; x.dataset.rw = rw; x.dataset.jenis = j;
+        if (ik) x.append(ikon(ik)); if (teks) x.append(el('span', '', teks));
+        if (extra) x.append(extra);
+        bar.append(x); return x;
+      };
+      if ((IZIN[j] || {}).tambah) b('tambah', 'Tambah', 'bi-plus-lg', 'rw-sbtn--tambah');
+      b('sync', 'Sync dari SIASN', 'bi-cloud-arrow-down-fill', 'rw-sbtn--sync');
+      var nU = USULAN.filter(function (u) { return u.jenis === j && bisaUbahUsulan(u); }).length;
+      b('usulan-j', mode === 'usulan' ? 'Tampilkan Riwayat' : 'Tampilkan Usulan', mode === 'usulan' ? 'bi-list-ul' : 'bi-journal-text', 'rw-sbtn--usulan', nU ? el('b', 'rw-sbtn__n', String(nU)) : null);
+      var seg = b('segar', '', 'bi-arrow-clockwise', 'rw-sbtn--ikon'); seg.title = 'Muat ulang dari SIMPEG'; seg.setAttribute('aria-label', 'Muat ulang');
+      head.append(h, bar);
+      sek.append(head);
+      if (mode === 'usulan') sek.append(tabelUsulan(j));
+      else {
+        if (j === 'pendidikan' && !q && BARIS[0]) {
+          var t0 = BARIS[0], k0 = t0.kolom || [], rk = el('div', 'rw-ringkas');
+          [['Tingkat Pendidikan Terakhir', (k0[0] || [])[1]], ['Pendidikan Terakhir', (k0[1] || [])[1] || t0.judul], ['Tanggal Lulus', t0.waktu]].forEach(function (p) {
+            var d = el('div'); d.append(el('small', '', p[0]), el('strong', '', p[1] || '-')); rk.append(d);
+          });
+          sek.append(rk);
+        }
+        if (!rows.length) sek.append(tabelKosong(j));
+        else {
+          var hal = Math.min(daftar.halJ[j] || 1, Math.max(1, Math.ceil(rows.length / daftar.per)));
+          var awal = (hal - 1) * daftar.per;
+          sek.append(tabel(rows.slice(awal, awal + daftar.per), awal));
+          var pg = el('nav', 'rw-pager'); pg.setAttribute('aria-label', 'Halaman ' + label);
+          pagerKe(pg, rows.length, hal, daftar.per, q, function (h2) { daftar.halJ[j] = h2; renderDaftar(); var s2 = $('.rw-seksi[data-jenis="' + j + '"]'); if (s2) s2.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+          sek.append(pg);
+        }
+      }
+      listEl.append(sek);
+    });
+  }
   function renderDaftar() {
     if (!listEl) return;
     listEl.replaceChildren();
@@ -722,7 +853,12 @@
       listEl.append(g); pagerEl.hidden = true; return;
     }
     var q = daftar.q.trim().toLowerCase();
-    var data = q ? BARIS.filter(function (r) { return q.split(/\s+/).every(function (k) { return teksCari(r).indexOf(k) >= 0; }); }) : BARIS;
+    var cocok = function (r) { return !q || q.split(/\s+/).every(function (k) { return teksCari(r).indexOf(k) >= 0; }); };
+    var pnl = $('#rw-panel');
+    listEl.classList.toggle('rw-list--tabel', !HP.matches);
+    if (pnl) pnl.classList.toggle('rw-panel--seksi', !HP.matches);
+    if (!HP.matches) { renderSeksi(cocok, q); pagerEl.hidden = true; return; }
+    var data = q ? BARIS.filter(cocok) : BARIS;
     var jml = Math.max(1, Math.ceil(data.length / daftar.per));
     daftar.hal = Math.min(Math.max(1, daftar.hal), jml);
     if (!data.length) {
@@ -733,25 +869,7 @@
     }
     var awal = (daftar.hal - 1) * daftar.per;
     var hal = data.slice(awal, awal + daftar.per);
-    listEl.classList.toggle('rw-list--tabel', !HP.matches);
-    if (!HP.matches && CFG.kategori === 'pendidikan' && !q && daftar.hal === 1 && BARIS[0]) {   // ringkasan seperti SIMPEG
-      var t0 = BARIS[0], k0 = t0.kolom || [], rk = el('div', 'rw-ringkas');
-      [['Tingkat Pendidikan Terakhir', (k0[0] || [])[1]], ['Pendidikan Terakhir', (k0[1] || [])[1] || t0.judul], ['Tanggal Lulus', t0.waktu]].forEach(function (p) {
-        var d = el('div'); d.append(el('small', '', p[0]), el('strong', '', p[1] || '-')); rk.append(d);
-      });
-      listEl.append(rk);
-    }
-    if (HP.matches) hal.forEach(function (r) { listEl.append(kartu(r)); });
-    else {
-      // desktop: satu tabel per jenis (mis. Diklat struktural & Diklat/kursus), seperti SIMPEG
-      var grup = [];
-      hal.forEach(function (r) { var g = grup.filter(function (x) { return x.jenis === r.jenis; })[0]; if (!g) grup.push(g = { jenis: r.jenis, rows: [] }); g.rows.push(r); });
-      var no = awal;
-      grup.forEach(function (g) {
-        if (grup.length > 1 || (CFG.jenis || []).length > 1) listEl.append(el('h3', 'rw-tabel__judul', (CFG.jenisLabel || {})[g.jenis] || g.jenis));
-        listEl.append(tabel(g.rows, no)); no += g.rows.length;
-      });
-    }
+    hal.forEach(function (r) { listEl.append(kartu(r)); });
     // halaman
     pagerEl.replaceChildren();
     pagerEl.hidden = data.length <= daftar.per && !q;
@@ -832,12 +950,19 @@
     var adaNilai = pasang.map(function (p) { return p[1]; }).join('|');
     (r.info || []).forEach(function (p) { if (adaNilai.indexOf(p[1]) < 0) pasang.push(p); });
     if (r.lengkap !== null && r.lengkap !== undefined) pasang.push(['Kelengkapan', r.lengkap ? 'Lengkap' : 'Belum lengkap' + ((r.kurang || []).length ? ' — belum ada ' + r.kurang.join(', ') : '')]);
-    box.append(barisInfo(pasang));
-    box.append(el('div', 'rw-sec', 'Dokumen'));
     var docs = (r.id_rw ? r.dok || [] : []).map(function (d) { return { label: d[0], kolom: d[1], sumber: { url: urlRiwayat(r, d[1]) } }; });
     var fokus = 0;
     docs.forEach(function (d, i) { if (d.kolom === dokKolom) fokus = i; });
-    box.append(blokDokumen(docs, fokus, 'Belum ada dokumen di repository. Gunakan Sync SIASN untuk menarik dokumen dari BKN.'));
+    var blok = blokDokumen(docs, fokus, 'Belum ada dokumen di repository. Gunakan Sync SIASN untuk menarik dokumen dari BKN.');
+    if (HP.matches) { box.append(barisInfo(pasang), el('div', 'rw-sec', 'Dokumen'), blok); }
+    else {           // desktop: popup lebar, rincian di kiri & dokumen (tab) di kanan seperti SIMPEG
+      box.classList.add('rw-dua');
+      var kiri = el('div', 'rw-dua__kiri'), kanan = el('div', 'rw-dua__kanan');
+      kiri.append.apply(kiri, Array.prototype.slice.call(box.childNodes));
+      kiri.append(tabelInfo(pasang));
+      kanan.append(blok);
+      box.append(kiri, kanan);
+    }
     var kaki = [];
     var iz = IZIN[r.jenis] || {};
     if (u) kaki.push(tombol('Lihat usulan', 'rw-btn--primary', 'bi-inboxes', function () { lihatUsulan(u); }));
@@ -846,7 +971,15 @@
       if (iz.ubah) kaki.push(tombol('Edit', 'rw-btn--kuning', 'bi-pencil-square', function () { bukaForm(r.jenis, 'ubah', r, null); }));
     }
     kaki.push(tombol('Tutup', '', null, tutupModal));
-    bukaModal('Detail ' + String(CFG.judul || '').replace(/^Riwayat /, ''), box, kaki, { drawer: true, fokus: $('[data-tutup]', modalEl) });
+    var lbl = (CFG.jenisLabel || {})[r.jenis] || String(CFG.judul || '').replace(/^Riwayat /, '');
+    if (HP.matches) bukaModal('Detail ' + lbl, box, kaki, { drawer: true, fokus: $('[data-tutup]', modalEl) });
+    else bukaModal('Riwayat ' + lbl + ' · ' + (((r.kolom || [])[0] || [])[1] || r.judul), box, kaki, { kelas: 'rw-modal--besar', fokus: $('[data-tutup]', modalEl) });
+  }
+  /** Rincian dua kolom (label | nilai) untuk popup desktop. */
+  function tabelInfo(pasang) {
+    var t = el('table', 'rw-info2'), tb = el('tbody');
+    pasang.forEach(function (p) { var tr = el('tr'); tr.append(el('th', '', p[0]), el('td', '', p[1] || '-')); tb.append(tr); });
+    t.append(tb); return t;
   }
 
   /* ---------- form usulan ---------- */
@@ -1109,18 +1242,21 @@
     var lama = u ? (u.data_lama || {}) : (row ? (row.awal || {}) : {});
     var kunci = !!def.kunci_ubah && (u ? u.aksi : aksi) === 'ubah';
     var berkas = {};
-    var form = el('form', 'rw-form'); form.noValidate = true;
+    var dua = !HP.matches;                    // desktop: popup lebar, isian kiri & dokumen kanan (seperti SIMPEG)
+    var form = el('form', dua ? 'rw-dua rw-dua--form' : 'rw-form'); form.noValidate = true;
+    var kiri = dua ? el('div', 'rw-form rw-dua__kiri') : form, kanan = dua ? el('div', 'rw-form rw-dua__kanan') : form;
+    if (dua) form.append(kiri, kanan);
     var atas = el('div', 'rw-f--penuh');
     if (u && u.status === 'dikembalikan' && u.catatan) atas.append(info('Catatan verifikator: ' + u.catatan, 'biru', 'bi-chat-left-text'));
     if (aksi === 'ubah' && row) atas.append(info('Perubahan diajukan sebagai usulan untuk: ' + row.judul + '. Data riwayat tidak berubah sebelum disetujui admin.', 'kuning', 'bi-info-circle'));
     if (def.catatan) atas.append(info(def.catatan, kunci ? 'kuning' : 'biru', kunci ? 'bi-lock' : 'bi-info-circle'));
     var galat = el('div', 'rw-info rw-info--merah'); galat.hidden = true; atas.append(galat);
-    form.append(atas);
-    if (def.field[0] && def.field[0].t !== 'judul') form.append(el('div', 'rw-form__sec', 'Data'));
+    kiri.append(atas);
+    if (def.field[0] && def.field[0].t !== 'judul') kiri.append(el('div', 'rw-form__sec', 'Data'));
     def.field.forEach(function (f) {
       var w = kontrol(f, data[f.k], data);
       if (f.tampil) w.dataset.tampil = JSON.stringify(f.tampil);
-      form.append(w);
+      kiri.append(w);
     });
     if (kunci) {               // data dikunci: hanya dokumen yang dapat diperbarui
       $$('.rw-f input[name^="f["], .rw-f select, .rw-f textarea', form).forEach(function (i) {
@@ -1128,16 +1264,17 @@
         i.closest('.rw-f').classList.add('is-kunci');
       });
     }
-    form.append(el('div', 'rw-form__sec', 'Dokumen'));
+    kanan.append(el('div', 'rw-form__sec', 'Dokumen'));
+    if (dua) kanan.append(el('p', 'rw-muted rw-f--penuh', 'PDF maksimal 1,5 MB. Dokumen baru menggantikan dokumen lama setelah usulan disetujui.'));
     def.dok.forEach(function (d) {
       var w = kontrolDok(d, u ? u.aksi : aksi, row, u, berkas);
       if (d[3]) w.dataset.tampil = JSON.stringify(d[3]);
-      form.append(w);
+      kanan.append(w);
     });
     var ket = el('div', 'rw-f rw-f--penuh'); ket.dataset.k = 'alasan';
     var lk = el('label', '', 'Keterangan untuk verifikator (opsional)'); lk.htmlFor = 'rwf-alasan';
     var ta = el('textarea'); ta.id = 'rwf-alasan'; ta.name = 'alasan'; ta.maxLength = 1000; ta.value = u ? (u.alasan || '') : '';
-    ket.append(lk, ta); form.append(ket);
+    ket.append(lk, ta); kanan.append(ket);
 
     // CPNS/PNS: sudah PNS -> tidak dapat kembali ke CPNS
     if (jenis === 'cpns' && String(lama.status || '').toUpperCase() === 'PNS') {
@@ -1217,7 +1354,7 @@
     form.addEventListener('submit', jalankan);
     var lbl = (CFG.jenisLabel[jenis] || jenis).toLowerCase();
     var judul = u ? 'Perbaiki usulan ' + lbl : (aksi === 'tambah' ? 'Tambah ' : 'Edit ') + lbl;
-    bukaModal(judul.charAt(0).toUpperCase() + judul.slice(1), form, [tombol('Batal', '', null, tutupModal), kirim], { drawer: true, lebar: true });
+    bukaModal(judul.charAt(0).toUpperCase() + judul.slice(1), form, [tombol('Batal', '', null, tutupModal), kirim], dua ? { kelas: 'rw-modal--besar' } : { drawer: true, lebar: true });
     pasangSemuaSelect(form);
   }
 
@@ -1705,7 +1842,11 @@
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-rw]');
     var kartuEl = !b && e.target.closest && e.target.closest('.rw-card, .rw-tabel tbody tr');
-    if (kartuEl && !e.target.closest('a,button')) { lihat(+kartuEl.dataset.idx); return; }   // klik kartu = Lihat
+    if (kartuEl && !e.target.closest('a,button')) {                       // klik kartu / baris = Lihat
+      if (kartuEl.dataset.uid) { if (usulanById(kartuEl.dataset.uid)) lihatUsulan(usulanById(kartuEl.dataset.uid)); }
+      else if (kartuEl.dataset.idx !== undefined) lihat(+kartuEl.dataset.idx);
+      return;
+    }
     if (!b || (modalEl && modalEl.contains(b))) return;
     var idx = b.dataset.idx !== undefined ? +b.dataset.idx : -1, r = BARIS[idx];
     switch (b.dataset.rw) {
@@ -1716,7 +1857,12 @@
       case 'hapus':
         if (r && r.usulan && usulanById(r.usulan)) lihatUsulan(usulanById(r.usulan)); else if (r) bukaHapus(r, null);
         break;
-      case 'tambah': pilihTambah(); break;
+      case 'tambah': if (b.dataset.jenis) bukaForm(b.dataset.jenis, 'tambah', null, null); else pilihTambah(); break;
+      case 'usulan-j': daftar.modeJ[b.dataset.jenis] = daftar.modeJ[b.dataset.jenis] === 'usulan' ? 'riwayat' : 'usulan'; renderDaftar(); break;
+      case 'segar': muatUlang({ segar: '1' }); break;
+      case 'u-lihat': if (usulanById(b.dataset.uid)) lihatUsulan(usulanById(b.dataset.uid)); break;
+      case 'u-edit': if (usulanById(b.dataset.uid)) editUsulan(usulanById(b.dataset.uid)); break;
+      case 'u-batal': if (usulanById(b.dataset.uid)) batalkan(usulanById(b.dataset.uid)); break;
       case 'usulan': togelUsulan(); break;
       case 'sync': bukaSync(); break;
     }

@@ -193,6 +193,7 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
         'kategori' => $aktif, 'judul' => $meta[$aktif][0], 'ikon' => $meta[$aktif][1], 'warna' => $meta[$aktif][2],
         'aksiUrl' => url('riwayat_aksi.php'), 'dokUrl' => url('riwayat_dok.php'), 'halamanUrl' => url('riwayat.php'),
         'jenis' => $jenisKat, 'jenisLabel' => array_intersect_key(RIWAYAT_JENIS_LABEL, array_flip($jenisKat)),
+        'kolomJudul' => array_combine($jenisKat, array_map('riwayat_kolom_judul', $jenisKat)),
         'izin' => $izin, 'form' => $formKat, 'baris' => $baris, 'usulan' => $usulanKat, 'usulanGagal' => $usulanSemua === null,
         'gagal' => $detail === null, 'kodeGagal' => $GLOBALS['riwayat_api_kode'] ?? null,
         'pdfMaks' => RIWAYAT_PDF_MAKS, 'dokRiwayat' => RIWAYAT_DOK_RIWAYAT, 'bukaUsulan' => ($_GET['usulan'] ?? '') === '1',
