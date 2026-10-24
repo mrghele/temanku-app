@@ -621,6 +621,20 @@ func init() {
 		return polaHariKerjaSekolah(jenjang, codes), nil
 	}
 
+	// Rekap: pegawai sekolah tercatat di SIMPEG dengan unit = OPD (Dinas) dan subunit = sekolah.
+	// Mesin absen & titik presensi memakai unit sekolah; rekap disamakan agar pola kerja (APEL / jadwal
+	// jenjang e-Carakdek) sekolah ikut terbaca, bukan pola OPD induk.
+	rekapPegawaiAsli := rekapData.pegawai
+	rekapData.pegawai = func(unit, nip string) ([]rekapPegawai, error) {
+		list, err := rekapPegawaiAsli(unit, nip)
+		for i := range list {
+			if s := list[i].SubUnit; s != "" && s != list[i].Unit && jenjangUnit(s) != "" {
+				list[i].Unit = s
+			}
+		}
+		return list, err
+	}
+
 	muatAsli := muatKonteksRekap
 	muatKonteksRekap = func() (*konteksRekap, error) {
 		k, err := muatAsli()
