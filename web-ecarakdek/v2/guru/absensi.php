@@ -76,7 +76,9 @@ $judulBulan = ($bulanPanjang[2] ?? '') . ' ' . ($bulanPanjang[3] ?? '');
         elseif (in_array($ji, ['libur', 'maintenance', 'belum_berlaku', 'cuti', 'dinas'], true)) echo e(($hariIniInfo['keterangan'] ?? '') ?: label_status($ji === 'belum_berlaku' ? 'belum_berlaku' : $ji)) . ' — tidak wajib absen hari ini';
       ?></p>
     <?php endif; ?>
-    <p class="attendance-page__hours"><?php if ($jadwalHariIni): ?>Masuk <?= e($jadwalHariIni['bmasuk']) ?>–<?= e($jadwalHariIni['tmasuk']) ?> · Pulang <?= e($jadwalHariIni['bpulang']) ?>–<?= e($jadwalHariIni['tpulang']) ?><?php else: ?>Jadwal presensi hari ini belum tersedia di APEL<?php endif; ?></p>
+    <?php /* jadwal reguler APEL; hari yang hanya ada di jadwal jenjang sekolah (mis. Sabtu sekolah 6 hari) dibaca tombol Absen dari mesin absen */ if ($jadwalHariIni): ?>
+    <p class="attendance-page__hours">Masuk <?= e($jadwalHariIni['bmasuk']) ?>–<?= e($jadwalHariIni['tmasuk']) ?> · Pulang <?= e($jadwalHariIni['bpulang']) ?>–<?= e($jadwalHariIni['tpulang']) ?></p>
+    <?php endif; ?>
   </section>
 
   <div class="attendance-page__gps-overlay" id="gps-overlay" role="alertdialog" aria-modal="true" aria-labelledby="gps-title">

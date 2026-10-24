@@ -64,7 +64,10 @@ input, button, select, textarea { font-family: inherit; }
   background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.24);
   color: #fff; font-weight: 800; font-size: 16px;
 }
-.brand__name { margin: 0; font-size: 15px; font-weight: 800; color: #fff; line-height: 1.1; }
+.brand { text-decoration: none; }
+.brand__logo { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; box-shadow: 0 6px 16px rgba(80,10,35,.25); }
+.brand__name { margin: 0; font-size: 21px; font-weight: 800; color: #fff; line-height: 1; letter-spacing: -.02em; }
+.brand__name span { color: #ffe08a; }
 .brand__org { margin: 2px 0 0; font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.55); }
 
 .menu { position: relative; display: flex; flex-direction: column; gap: 3px; }
@@ -435,7 +438,8 @@ input, button, select, textarea { font-family: inherit; }
   .topbar { position:relative;z-index:1;padding:18px 18px 0;background:#d94f7f; }
   .mobile-brand { display:flex;align-items:center;gap:10px;color:#fff; }
   .mobile-brand:hover { color:#fff; }
-  .mobile-brand strong { display:block;font-size:14.5px;line-height:1.1; }
+  .mobile-brand strong { display:block;font-size:18px;line-height:1; }
+  .mobile-brand .brand__logo { width:36px;height:36px; }
   .mobile-brand small { display:block;margin-top:2px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.6); }
   .mobile-brand .brand__mark { width:36px;height:36px; }
   .topbar .icon-btn,.topbar .userchip img { width:40px;height:40px;border-radius:13px; }

@@ -17,13 +17,10 @@ $nav = array_values(array_filter($nav, static function ($item): bool {
   <span class="sidebar__sq" style="bottom:120px;right:-46px;width:120px;height:120px;border-radius:28px;transform:rotate(20deg)"></span>
   <span class="sidebar__sq" style="top:44%;left:-40px;width:90px;height:90px;border-radius:22px;transform:rotate(-18deg)"></span>
 
-  <div class="brand">
-    <span class="brand__mark">e</span>
-    <span>
-      <p class="brand__name"><?= APP_NAME ?></p>
-      <p class="brand__org"><?= APP_ORG ?></p>
-    </span>
-  </div>
+  <a class="brand" href="<?= url('index.php') ?>" aria-label="<?= APP_NAME ?> – Beranda">
+    <img class="brand__logo" src="<?= url('assets/img/logo-mark.svg') ?>" alt="" width="40" height="40">
+    <p class="brand__name"><span>e</span>Carakdek</p>
+  </a>
 
   <nav class="menu">
     <p class="menu__label">Menu</p>

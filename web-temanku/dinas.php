@@ -90,6 +90,7 @@ $label = ['diajukan' => 'Menunggu persetujuan', 'disetujui' => 'Disetujui', 'dit
 .dns__card{background:#fff;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 6px 24px #123b3c0f}
 .dns label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:#5f7474;margin-bottom:10px}
 .dns input,.dns textarea,.dns select{padding:10px;border:1px solid #d8e3e2;border-radius:10px;font:inherit}
+.dns .select2-container--default .select2-selection--single{height:42px;border:1px solid #d8e3e2;border-radius:10px;display:flex;align-items:center}.dns .select2-container--default .select2-selection--single .select2-selection__rendered{padding-left:10px;padding-right:44px;color:inherit}.dns .select2-container--default .select2-selection--single .select2-selection__arrow{height:40px;right:6px}.dns .select2-container--default.select2-container--focus .select2-selection--single,.dns .select2-container--open .select2-selection--single{border-color:#168f90}.select2-container--default .select2-results__option--highlighted[aria-selected]{background:#168f90}.select2-dropdown{border-color:#d8e3e2;border-radius:10px;overflow:hidden}.select2-search--dropdown .select2-search__field{border-radius:8px;padding:8px}
 .dns__grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .dns [hidden]{display:none!important} /* [temanku] atribut hidden harus mengalahkan display:flex/grid */
 .dns__tetap{font-size:13px;color:#24403f;background:#f2f7f6;border-radius:10px;padding:10px 12px;margin-bottom:10px}
@@ -143,12 +144,37 @@ $label = ['diajukan' => 'Menunggu persetujuan', 'disetujui' => 'Disetujui', 'dit
   const jenis = document.getElementById('dinas-jenis'), kec = document.getElementById('tujuan-kec'), desa = document.getElementById('tujuan-desa');
   const atur = () => { const luar = jenis.value === 'LUAR'; document.getElementById('tujuan-dalam').hidden = luar; document.getElementById('tujuan-luar').hidden = !luar;
     document.getElementById('info-dalam').hidden = luar; document.getElementById('info-luar').hidden = !luar;
-    kec.required = !luar; document.querySelector('[name=tujuan_kabkota]').required = luar; };
-  kec.addEventListener('change', () => {
+    const kab = document.querySelector('[name=tujuan_kabkota]');
+    kec.required = !luar && !kec.dataset.wajib; kab.required = luar && !kab.dataset.wajib; };
+  const isiDesa = () => {
     const opt = kec.selectedOptions[0], daftar = opt && opt.dataset.desa ? JSON.parse(opt.dataset.desa) : [];
     desa.replaceChildren(new Option('-- Seluruh kecamatan --', ''), ...daftar.map(d => new Option(d, d)));
-  });
+    if (window.jQuery && jQuery.fn.select2) jQuery(desa).trigger('change.select2');
+  };
+  kec.addEventListener('change', isiDesa);
   jenis.addEventListener('change', atur); atur();
+
+  /* Select2 (cari kabupaten/kota, kecamatan, desa); tanpa CDN tetap memakai select biasa. */
+  const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/';
+  const muat = (src) => new Promise((ok, gagal) => { const s = document.createElement('script'); s.src = src; s.crossOrigin = 'anonymous'; s.onload = ok; s.onerror = gagal; document.head.append(s); });
+  const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = CDN + 'select2/4.0.13/css/select2.min.css'; document.head.append(css);
+  (window.jQuery ? Promise.resolve() : muat(CDN + 'jquery/3.7.1/jquery.min.js'))
+    .then(() => (jQuery.fn.select2 ? null : muat(CDN + 'select2/4.0.13/js/select2.min.js')))
+    .then(() => {
+      const $ = window.jQuery, kab = document.querySelector('[name=tujuan_kabkota]');
+      const bahasa = { noResults: () => 'Tidak ditemukan', searching: () => 'Mencari…' };
+      const pasang = (el, placeholder, hapus) => $(el).select2({ width: '100%', placeholder, allowClear: hapus, language: bahasa });
+      pasang(kec, 'Cari kecamatan…', false);
+      pasang(desa, 'Seluruh kecamatan (opsional)', true);
+      pasang(kab, 'Cari kabupaten/kota…', false);
+      $(kec).on('change', isiDesa);   // Select2 memicu change lewat jQuery
+      [kec, kab].forEach((el) => { el.dataset.wajib = '1'; el.required = false; });   // validasi bawaan tidak bisa fokus ke select tersembunyi
+      kec.form.addEventListener('submit', (e) => {
+        const target = jenis.value === 'LUAR' ? kab : kec;
+        if (!target.value) { e.preventDefault(); $(target).select2('open'); }
+      });
+    })
+    .catch(() => {});
 })();
 </script>
 <?php require __DIR__ . '/includes/footer.php'; ?>

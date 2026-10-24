@@ -28,7 +28,7 @@ $f          = flash();
 <?php require __DIR__ . '/sidebar.php'; ?>
   <div class="main">
     <header class="topbar">
-      <a class="mobile-brand" href="<?= url('index.php') ?>"><span class="brand__mark">e</span><span><strong>eCARAKDEK</strong><small>BKPSDM KEP. SELAYAR</small></span></a>
+      <a class="mobile-brand" href="<?= url('index.php') ?>"><img class="brand__logo" src="<?= url('assets/img/logo-mark.svg') ?>" alt="" width="36" height="36"><strong class="brand__name"><span>e</span>Carakdek</strong></a>
       <form class="search" method="get" action="<?= url('layanan.php') ?>">
         <i class="bi bi-search"></i>
         <input type="search" name="q" value="<?= e($cari) ?>" placeholder="Cari layanan, berkas, atau riwayat..." />

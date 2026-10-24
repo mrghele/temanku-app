@@ -364,10 +364,11 @@ func kategoriSekolahValid(k string) bool {
 }
 
 // pola jenjang dari nama unit (tbl_unit.nmunit); tidak ada kolom jenjang di SIMPEG.
+// Nama boleh diawali "UPT"/"UPTD" (mis. "UPT SMPN BENTENG NO. 1 KEPULAUAN SELAYAR").
 var (
-	jenjangTK  = regexp.MustCompile(`(?i)^\s*(TK|TKN|TK\s*NEGERI|PAUD|KB|RA)\b`)
-	jenjangSD  = regexp.MustCompile(`(?i)^\s*(SD|SDN|SD\s*NEGERI|SD\s*INPRES|SDI|MI|MIN)\b`)
-	jenjangSMP = regexp.MustCompile(`(?i)^\s*(SMP|SMPN|SMP\s*NEGERI|SMP\s*SATAP|MTS|MTSN)\b`)
+	jenjangTK  = regexp.MustCompile(`(?i)^\s*(UPTD?\.?\s+)?(TK|TKN|TK\s*NEGERI|PAUD|KB|RA)\b`)
+	jenjangSD  = regexp.MustCompile(`(?i)^\s*(UPTD?\.?\s+)?(SD|SDN|SD\s*NEGERI|SD\s*INPRES|SDI|MI|MIN)\b`)
+	jenjangSMP = regexp.MustCompile(`(?i)^\s*(UPTD?\.?\s+)?(SMP|SMPN|SMP\s*NEGERI|SMP\s*SATAP|MTS|MTSN)\b`)
 )
 
 var (
@@ -489,8 +490,19 @@ func (ctx absenCtx) jadwalReguler(hariKerja int, aksi string) (jadwalResult, err
 		if j, ok := jadwalSekolah(ctx.unit, hariKerja, ctx.hari, aksi); ok {
 			return j, nil
 		}
+		return regulerCadangan(hariKerja, func(hk int) (jadwalResult, error) { return absenData.reguler(hk, ctx.hari, aksi) })
 	}
 	return absenData.reguler(hariKerja, ctx.hari, aksi)
+}
+
+// regulerCadangan: hari yang tidak diisi di jadwal jenjang memakai jadwal reguler APEL. Sekolah 6 hari
+// (pola 6HK) sementara APEL hanya punya reguler 5 hari: Senin-Jumat memakai reguler 5 hari.
+func regulerCadangan(hk int, cari func(hk int) (jadwalResult, error)) (jadwalResult, error) {
+	j, err := cari(hk)
+	if err == nil && !j.Found && hk == 6 {
+		return cari(5)
+	}
+	return j, err
 }
 
 // regulerPeg: rekap - sama dengan jadwalReguler, dengan cache per bulan.
@@ -499,6 +511,8 @@ func (b *rekapBulan) regulerPeg(nip, unit string, hk int, hari, aksi string) jad
 		if j, ok := jadwalSekolah(unit, hk, hari, aksi); ok {
 			return j
 		}
+		j, _ := regulerCadangan(hk, func(h int) (jadwalResult, error) { return b.reguler(h, hari, aksi), nil })
+		return j
 	}
 	return b.reguler(hk, hari, aksi)
 }
