@@ -11,10 +11,18 @@ declare(strict_types=1);
  */
 
 /** Jenis sync per kategori halaman (tugas tambahan ada di riwayat jabatan SIASN). */
-function riwayat_sync_jenis(string $kategori): array
+function riwayat_sync_jenis(string $kategori, string $hanya = ''): array
 {
     $jenis = RIWAYAT_KATEGORI_JENIS[$kategori] ?? [];
+    // Sync per seksi (mis. Diklat Struktural vs Diklat/Kursus): hanya jenis itu, endpoint SIASN masing-masing (seperti SIMPEG).
+    if ($hanya !== '' && in_array($hanya, $jenis, true)) $jenis = [$hanya];
     return array_values(array_unique(array_map(static function (string $j): string { return $j === 'tugas' ? 'jabatan' : $j; }, $jenis)));
+}
+
+/** Kunci sesi daftar dokumen tahap 2: per kategori, atau per kategori + jenis bila sync satu seksi. */
+function riwayat_sync_kunci(string $kategori, string $jenis = ''): string
+{
+    return $jenis !== '' && in_array($jenis, RIWAYAT_KATEGORI_JENIS[$kategori] ?? [], true) ? $kategori . ':' . $jenis : $kategori;
 }
 
 /** POST ke gerbang sinkron e-Carakdek; mengembalikan [kode HTTP, json]. Kode 0 = server tidak terhubung. */
@@ -50,11 +58,11 @@ function guru_sinkron_pesan(?array $j, int $kode, string $cadangan): string
 }
 
 /** Tahap 1: tarik data semua jenis dalam kategori, lalu siapkan daftar dokumen untuk tahap 2. */
-function riwayat_sync_data(array $pegawai, string $kategori): array
+function riwayat_sync_data(array $pegawai, string $kategori, string $hanya = ''): array
 {
     $pesan = [];
     $docs = [];
-    foreach (riwayat_sync_jenis($kategori) as $jenis) {
+    foreach (riwayat_sync_jenis($kategori, $hanya) as $jenis) {
         $label = RIWAYAT_JENIS_LABEL[$jenis] ?? $jenis;
         [$kode, $j] = guru_sinkron($jenis, ['id' => $pegawai['pns_id'], 'mode' => 'data']);
         if ($kode < 200 || $kode >= 300 || !is_array($j) || empty($j['success'])) {
@@ -71,7 +79,7 @@ function riwayat_sync_data(array $pegawai, string $kategori): array
             }
         }
     }
-    $_SESSION['riwayat_sync_dok'][$kategori] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
+    $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
     unset($_SESSION['riwayat_cache'], $_SESSION['riwayat_identitas']);   // tampilkan hasil sinkron
     $baru = count(array_filter($docs, static function (array $x): bool { return !$x['sudah']; }));
     return ['success' => true, 'berubah' => true, 'message' => implode('; ', $pesan) ?: 'Tidak ada data',
@@ -79,10 +87,10 @@ function riwayat_sync_data(array $pegawai, string $kategori): array
 }
 
 /** Tahap 2 saja: daftar dokumen SIASN (gerbang mode=dok_list) tanpa menarik data. */
-function riwayat_sync_dok_siapkan(array $pegawai, string $kategori): array
+function riwayat_sync_dok_siapkan(array $pegawai, string $kategori, string $hanya = ''): array
 {
     $docs = [];
-    foreach (riwayat_sync_jenis($kategori) as $jenis) {
+    foreach (riwayat_sync_jenis($kategori, $hanya) as $jenis) {
         $label = RIWAYAT_JENIS_LABEL[$jenis] ?? $jenis;
         [$kode, $d] = guru_sinkron($jenis, ['id' => $pegawai['pns_id'], 'mode' => 'dok_list']);
         if ($kode < 200 || $kode >= 300 || !is_array($d) || empty($d['success'])) {
@@ -93,14 +101,14 @@ function riwayat_sync_dok_siapkan(array $pegawai, string $kategori): array
             $docs[] = ['jenis' => $jenis, 'idx' => (int)$x['idx'], 'dokumen' => (string)($x['label'] ?? 'Dokumen'), 'label' => $label, 'sudah' => !empty($x['sudah'])];
         }
     }
-    $_SESSION['riwayat_sync_dok'][$kategori] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
-    return ['success' => true, 'data' => riwayat_sync_dok_daftar($pegawai, $kategori) ?? []];
+    $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
+    return ['success' => true, 'data' => riwayat_sync_dok_daftar($pegawai, $kategori, $hanya) ?? []];
 }
 
 /** Daftar dokumen hasil tahap 1 (untuk dipilih); null bila tahap 1 belum dijalankan. */
-function riwayat_sync_dok_daftar(array $pegawai, string $kategori): ?array
+function riwayat_sync_dok_daftar(array $pegawai, string $kategori, string $hanya = ''): ?array
 {
-    $simpan = $_SESSION['riwayat_sync_dok'][$kategori] ?? null;
+    $simpan = $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] ?? null;
     if (!is_array($simpan) || ($simpan['pns_id'] ?? '') !== $pegawai['pns_id']) return null;
     $out = [];
     foreach ($simpan['docs'] as $i => $d) {
@@ -110,15 +118,16 @@ function riwayat_sync_dok_daftar(array $pegawai, string $kategori): ?array
 }
 
 /** Tahap 2: satu dokumen SIASN -> repository -> riwayat (lewat gerbang). */
-function riwayat_sync_dok(array $pegawai, string $kategori, int $idx): array
+function riwayat_sync_dok(array $pegawai, string $kategori, int $idx, string $hanya = ''): array
 {
-    $simpan = $_SESSION['riwayat_sync_dok'][$kategori] ?? null;
+    $kunci = riwayat_sync_kunci($kategori, $hanya);
+    $simpan = $_SESSION['riwayat_sync_dok'][$kunci] ?? null;
     $d = is_array($simpan) && ($simpan['pns_id'] ?? '') === $pegawai['pns_id'] ? ($simpan['docs'][$idx] ?? null) : null;
     if (!$d) return ['success' => false, 'message' => 'Daftar dokumen kedaluwarsa. Jalankan sync lagi.'];
     [$kode, $j] = guru_sinkron($d['jenis'], ['id' => $pegawai['pns_id'], 'mode' => 'dok', 'idx' => $d['idx']]);
     $ok = $kode >= 200 && $kode < 300 && is_array($j) && !empty($j['success']);
     if ($ok) {
-        $_SESSION['riwayat_sync_dok'][$kategori]['docs'][$idx]['sudah'] = true;
+        $_SESSION['riwayat_sync_dok'][$kunci]['docs'][$idx]['sudah'] = true;
         unset($_SESSION['riwayat_cache']);
     }
     return ['success' => $ok, 'offline' => $kode === 0 || !empty($j['offline']),

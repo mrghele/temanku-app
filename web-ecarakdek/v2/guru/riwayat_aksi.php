@@ -150,7 +150,8 @@ if ($aksi === 'identitas_simpan' && !RIWAYAT_UBAH_IDENTITAS) {
 if ($aksi === 'sync_dok_list') {
     require_once __DIR__ . '/includes/riwayat_sync.php';
     $kategori = rw_input('kategori');
-    $d = isset($kategoriTampil[$kategori]) ? riwayat_sync_dok_daftar($pegawai, $kategori) : null;
+    $jenisSync = rw_jenis_sync($kategori);
+    $d = isset($kategoriTampil[$kategori]) ? riwayat_sync_dok_daftar($pegawai, $kategori, $jenisSync) : null;
     if ($d === null) rw_keluar(['success' => false, 'message' => 'Jalankan langkah 1 (data) lebih dulu.'], 409);
     rw_keluar(['success' => true, 'data' => $d]);
 }
@@ -159,13 +160,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') rw_keluar(['success' => false, 'messa
 require_post();
 
 /* ---------- sync SIASN ---------- */
+/** Jenis satu seksi (opsional) yang disync; kosong = semua jenis kategori. */
+function rw_jenis_sync(string $kategori): string
+{
+    $j = rw_input('jenis');
+    return in_array($j, RIWAYAT_KATEGORI_JENIS[$kategori] ?? [], true) ? $j : '';
+}
 if ($aksi === 'sync_dok_siapkan') {   // Tahap 2 saja: daftar dokumen SIASN tanpa menarik data
     require_once __DIR__ . '/includes/riwayat_sync.php';
     set_time_limit(180);
     $kategori = rw_input('kategori');
     if (!isset($kategoriTampil[$kategori])) rw_keluar(['success' => false, 'message' => 'Kategori tidak dikenal'], 400);
     if (!rw_batas('sync_data', 20, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu sering sinkron. Tunggu beberapa menit.'], 429);
-    $h = riwayat_sync_dok_siapkan($pegawai, $kategori);
+    $h = riwayat_sync_dok_siapkan($pegawai, $kategori, rw_jenis_sync($kategori));
     rw_keluar($h, $h['success'] ? 200 : 502);
 }
 if ($aksi === 'sync_data' || $aksi === 'sync_dok') {
@@ -175,12 +182,12 @@ if ($aksi === 'sync_data' || $aksi === 'sync_dok') {
     if (!isset($kategoriTampil[$kategori])) rw_keluar(['success' => false, 'message' => 'Kategori tidak dikenal'], 400);
     if ($aksi === 'sync_data') {
         if (!rw_batas('sync_data', 20, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu sering sinkron. Tunggu beberapa menit.'], 429);
-        $h = riwayat_sync_data($pegawai, $kategori);
+        $h = riwayat_sync_data($pegawai, $kategori, rw_jenis_sync($kategori));
         error_log('TEMANKU riwayat sync ' . $kategori . ' pns=' . $pegawai['pns_id'] . ': ' . ($h['success'] ? 'ok' : 'gagal') . ' ' . $h['message']);
         rw_keluar($h, $h['success'] ? 200 : 502);
     }
     if (!rw_batas('sync_dok', 150, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu banyak dokumen ditarik. Tunggu beberapa menit.'], 429);
-    $h = riwayat_sync_dok($pegawai, $kategori, (int)rw_input('idx'));
+    $h = riwayat_sync_dok($pegawai, $kategori, (int)rw_input('idx'), rw_jenis_sync($kategori));
     rw_keluar($h);
 }
 

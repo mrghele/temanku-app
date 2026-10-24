@@ -717,8 +717,8 @@
       };
       var iz = IZIN[r.jenis] || {};
       mk('lihat', 'bi-eye', '', 'Lihat');
-      if (iz.ubah) mk('ubah', 'bi-pencil', 'rw-aksi__btn--edit', r.usulan ? 'Lihat usulan' : 'Edit');
-      if (iz.hapus) mk('hapus', 'bi-trash3', 'rw-aksi__btn--hapus', r.usulan ? 'Lihat usulan' : 'Hapus');
+      if (iz.ubah) mk('ubah', 'bi-pencil', 'rw-aksi__btn--edit', 'Edit');
+      if (iz.hapus) mk('hapus', 'bi-trash3', 'rw-aksi__btn--hapus', 'Hapus');
       tdA.append(ak);
       tr2.append(tdD, tdL, tdA);
       tb.append(tr2);
@@ -1587,6 +1587,16 @@
     return String(v);
   }
 
+  /* Riwayat yang masih punya usulan belum selesai tidak bisa diedit/dihapus lagi (seperti SIMPEG). */
+  function peringatanUsulan(u) {
+    var box = el('div', 'rw-alert');
+    var ik = el('div', 'rw-alert__ikon', '?');
+    box.append(ik, el('h4', 'rw-alert__judul', 'Masih ada usulan'),
+      el('p', '', 'Riwayat ini masih memiliki usulan yang belum selesai (diajukan ' + tgl(u.diajukan_at) + ').'),
+      el('p', '', u.status === 'dikembalikan' ? 'Usulan dikembalikan verifikator. Perbaiki usulan tersebut dari daftar usulan.' : 'Kelola usulan tersebut dari daftar usulan.'));
+    var lihat = tombol('Lihat Usulan', 'rw-btn--kuning', null, function () { lihatUsulan(u); });
+    bukaModal('Masih ada usulan', box, [tombol('Tutup', '', null, tutupModal), lihat], { kelas: 'rw-modal--alert', fokus: lihat });
+  }
   function lihatUsulan(u) {
     var box = el('div', 'rw-detail');
     var st = STATUS[u.status] || [u.status, 'abu', 'bi-circle'];
@@ -1727,7 +1737,7 @@
       var b = el('button', 'rw-syncmenu__item'); b.type = 'button'; b.setAttribute('role', 'menuitem');
       var t = el('span'); t.append(el('b', '', x[1]), document.createTextNode(' · ' + x[2]));
       b.append(ikon(x[3]), t);
-      b.addEventListener('click', function () { tutupMenuSync(); bukaSync(x[0]); });
+      b.addEventListener('click', function () { tutupMenuSync(); bukaSync(x[0], btn.dataset.jenis || ''); });
       m.append(b);
     });
     document.body.append(m);
@@ -1742,8 +1752,11 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menuSyncEl) { var b = menuSyncEl._btn; tutupMenuSync(); b.focus(); } });
   window.addEventListener('resize', tutupMenuSync);
 
-  function bukaSync(mode) {
-    var nama = String(CFG.judul || '').toLowerCase();
+  // jenis = sync satu seksi saja (mis. Diklat Struktural / Diklat-Kursus: endpoint SIASN berbeda, seperti SIMPEG)
+  function bukaSync(mode, jenis) {
+    jenis = jenis || '';
+    var nama = String(jenis ? ((CFG.jenisLabel || {})[jenis] || jenis) : (CFG.judul || '')).toLowerCase();
+    var ikut = function (f) { if (jenis) f.set('jenis', jenis); return f; };
     var hanyaDok = mode === 'dok';
     var box = el('div', 'rw-sync');
     var ik = el('div', 'rw-sync__ikon'); ik.append(el('span', 'rw-spin'));
@@ -1795,8 +1808,8 @@
       t2.isi.hidden = false; t2.isi.replaceChildren(el('p', 'rw-muted', 'Memuat daftar dokumen…'));
       modalSibuk = true; kaki([]);
       var janji;
-      if (siapkan) { var f = fdBaru('sync_dok_siapkan'); f.set('kategori', CFG.kategori); janji = post(f); }
-      else janji = get({ aksi: 'sync_dok_list', kategori: CFG.kategori });
+      if (siapkan) { var f = fdBaru('sync_dok_siapkan'); f.set('kategori', CFG.kategori); janji = post(ikut(f)); }
+      else janji = get(jenis ? { aksi: 'sync_dok_list', kategori: CFG.kategori, jenis: jenis } : { aksi: 'sync_dok_list', kategori: CFG.kategori });
       janji.then(function (j) {
         var list = j.data || [];
         if (!list.length) {
@@ -1835,7 +1848,7 @@
             if (putus) { li.className = 'gagal'; li._st.textContent = '!'; li._st.title = 'Dilewati: API BKN terputus'; gagalLi.push(li); i++; return lanjut(); }
             li.className = 'proses'; li._st.textContent = '⏳'; li.scrollIntoView({ block: 'nearest' });
             teks.textContent = 'Dokumen ' + (i + 1) + ' dari ' + daftar.length + ': ' + li._d.dokumen;
-            var f2 = fdBaru('sync_dok'); f2.set('kategori', CFG.kategori); f2.set('idx', String(li._d.idx));
+            var f2 = ikut(fdBaru('sync_dok')); f2.set('kategori', CFG.kategori); f2.set('idx', String(li._d.idx));
             return post(f2).then(function (r) { ok++; berubah = true; li.className = 'ok'; li._st.textContent = '✓'; li._st.title = r.message || ''; })
               .catch(function (e) { gagalLi.push(li); li.className = 'gagal'; li._st.textContent = '!'; li._st.title = e.message; if (e.data && e.data.offline) { putus = true; cekApi(); } })
               .then(function () { i++; bar.style.width = Math.round(100 * i / daftar.length) + '%'; return lanjut(); });
@@ -1869,7 +1882,7 @@
       t1.no.textContent = '1';
       t1.isi.hidden = false; t1.isi.replaceChildren(el('div', 'rw-progress', ''));
       var bar = el('span'); t1.isi.firstChild.append(bar); bar.style.width = '35%';
-      var fd = fdBaru('sync_data'); fd.set('kategori', CFG.kategori);
+      var fd = ikut(fdBaru('sync_data')); fd.set('kategori', CFG.kategori);
       post(fd).then(function (j) {
         berubah = true; bar.style.width = '100%';
         t1.ket.textContent = j.message;
@@ -1906,10 +1919,10 @@
         else lihat(idx, b.dataset.dok);
         break;
       case 'ubah':
-        if (r && r.usulan && usulanById(r.usulan)) lihatUsulan(usulanById(r.usulan)); else if (r) bukaForm(r.jenis, 'ubah', r, null);
+        if (r && r.usulan && usulanById(r.usulan)) peringatanUsulan(usulanById(r.usulan)); else if (r) bukaForm(r.jenis, 'ubah', r, null);
         break;
       case 'hapus':
-        if (r && r.usulan && usulanById(r.usulan)) lihatUsulan(usulanById(r.usulan)); else if (r) bukaHapus(r, null);
+        if (r && r.usulan && usulanById(r.usulan)) peringatanUsulan(usulanById(r.usulan)); else if (r) bukaHapus(r, null);
         break;
       case 'tambah': if (b.dataset.jenis) bukaForm(b.dataset.jenis, 'tambah', null, null); else pilihTambah(); break;
       case 'usulan-j': daftar.modeJ[b.dataset.jenis] = daftar.modeJ[b.dataset.jenis] === 'usulan' ? 'riwayat' : 'usulan'; renderDaftar(); break;

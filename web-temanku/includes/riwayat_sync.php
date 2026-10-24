@@ -17,10 +17,18 @@ const RIWAYAT_SYNC_ENDPOINT = [
 ];
 
 /** Jenis sync per kategori halaman (tugas tambahan ada di riwayat jabatan SIASN). */
-function riwayat_sync_jenis(string $kategori): array
+function riwayat_sync_jenis(string $kategori, string $hanya = ''): array
 {
     $jenis = RIWAYAT_KATEGORI_JENIS[$kategori] ?? [];
+    // Sync per seksi (mis. Diklat Struktural vs Diklat/Kursus): hanya jenis itu, endpoint SIASN masing-masing (seperti SIMPEG).
+    if ($hanya !== '' && in_array($hanya, $jenis, true)) $jenis = [$hanya];
     return array_values(array_unique(array_map(static function (string $j): string { return $j === 'tugas' ? 'jabatan' : $j; }, $jenis)));
+}
+
+/** Kunci sesi daftar dokumen tahap 2: per kategori, atau per kategori + jenis bila sync satu seksi. */
+function riwayat_sync_kunci(string $kategori, string $jenis = ''): string
+{
+    return $jenis !== '' && in_array($jenis, RIWAYAT_KATEGORI_JENIS[$kategori] ?? [], true) ? $kategori . ':' . $jenis : $kategori;
 }
 
 function rs_txt($v): string
@@ -417,14 +425,14 @@ function riwayat_dokmap(?array $set = null): array
  * Tahap 1: tarik data SIASN satu kategori dan simpan ke SIMPEG. Daftar dokumen SIASN disimpan di sesi untuk tahap 2.
  * @return array{success:bool, offline?:bool, message:string, dokumen:int}
  */
-function riwayat_sync_data(array $pegawai, string $kategori): array
+function riwayat_sync_data(array $pegawai, string $kategori, string $hanya = ''): array
 {
     $tok = rs_token();
     if ($tok === null) return ['success' => false, 'offline' => true, 'message' => 'API BKN tidak terhubung. Data lokal tidak diubah.', 'dokumen' => 0];
     $pesan = [];
     $docs = [];
     $berhasil = false;
-    foreach (riwayat_sync_jenis($kategori) as $jenis) {
+    foreach (riwayat_sync_jenis($kategori, $hanya) as $jenis) {
         $label = RIWAYAT_JENIS_LABEL[$jenis] ?? $jenis;
         if (in_array($jenis, ['golongan', 'jabatan'], true)) {
             // Seperti SIMPEG: minta SIASN menyinkronkan riwayat ke data utama dulu (tidak menggagalkan sync).
@@ -455,7 +463,7 @@ function riwayat_sync_data(array $pegawai, string $kategori): array
         $pesan[] = sprintf('%s: %d riwayat (%d baru, %d diperbarui, %d dihapus)', $label, count($items),
             (int)($json['inserted'] ?? 0), (int)($json['updated'] ?? 0), (int)($json['deleted'] ?? 0));
     }
-    $_SESSION['riwayat_sync_dok'][$kategori] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
+    $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
     unset($_SESSION['riwayat_cache'][$pegawai['pns_id'] . ':' . $kategori]);
     if ($kategori === 'jabatan' || $kategori === 'tugas') {
         unset($_SESSION['riwayat_cache'][$pegawai['pns_id'] . ':jabatan'], $_SESSION['riwayat_cache'][$pegawai['pns_id'] . ':tugas']);
@@ -469,9 +477,9 @@ function riwayat_sync_data(array $pegawai, string $kategori): array
  * Tahap 2: satu dokumen SIASN -> repository -> riwayat. Dokumen yang sudah pernah ditarik tidak diunduh ulang.
  * @return array{success:bool, message:string, offline?:bool}
  */
-function riwayat_sync_dok(array $pegawai, string $kategori, int $idx): array
+function riwayat_sync_dok(array $pegawai, string $kategori, int $idx, string $hanya = ''): array
 {
-    $simpan = $_SESSION['riwayat_sync_dok'][$kategori] ?? null;
+    $simpan = $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] ?? null;
     if (!is_array($simpan) || ($simpan['pns_id'] ?? '') !== $pegawai['pns_id'] || !isset($simpan['docs'][$idx])) {
         return ['success' => false, 'message' => 'Daftar dokumen kedaluwarsa. Jalankan sync lagi.'];
     }
@@ -532,9 +540,9 @@ function riwayat_sync_lokal(array $pegawai, string $kategori): ?array
  * Daftar dokumen SIASN untuk tahap 2: [idx, label, dokumen, sudah]. "sudah" = berkas sudah ada di riwayat SIMPEG
  * atau pernah ditarik ke repository; seperti SIMPEG, yang sudah ada tidak ditarik ulang otomatis.
  */
-function riwayat_sync_dok_daftar(array $pegawai, string $kategori, ?array $lokal = null): ?array
+function riwayat_sync_dok_daftar(array $pegawai, string $kategori, ?array $lokal = null, string $hanya = ''): ?array
 {
-    $simpan = $_SESSION['riwayat_sync_dok'][$kategori] ?? null;
+    $simpan = $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] ?? null;
     if (!is_array($simpan) || ($simpan['pns_id'] ?? '') !== $pegawai['pns_id']) return null;
     $map = riwayat_dokmap();
     $lokal = $lokal ?? riwayat_sync_lokal($pegawai, $kategori) ?? [];
@@ -550,14 +558,14 @@ function riwayat_sync_dok_daftar(array $pegawai, string $kategori, ?array $lokal
  * Tahap 2 saja (tanpa menarik data): ambil daftar dokumen dari SIASN untuk riwayat yang sudah ada di SIMPEG.
  * @return array{success:bool, message?:string, offline?:bool, data?:array}
  */
-function riwayat_sync_dok_siapkan(array $pegawai, string $kategori): array
+function riwayat_sync_dok_siapkan(array $pegawai, string $kategori, string $hanya = ''): array
 {
     $tok = rs_token();
     if ($tok === null) return ['success' => false, 'offline' => true, 'message' => 'API BKN tidak terhubung.'];
     $lokal = riwayat_sync_lokal($pegawai, $kategori);
     if ($lokal === null) return ['success' => false, 'message' => 'Riwayat SIMPEG belum dapat dimuat. Coba lagi.'];
     $docs = [];
-    foreach (riwayat_sync_jenis($kategori) as $jenis) {
+    foreach (riwayat_sync_jenis($kategori, $hanya) as $jenis) {
         $label = RIWAYAT_JENIS_LABEL[$jenis] ?? $jenis;
         $src = riwayat_sync_ambil($jenis, $pegawai['nip'], $pegawai['pns_id'], $tok);
         if (!$src['ok']) {
@@ -571,8 +579,8 @@ function riwayat_sync_dok_siapkan(array $pegawai, string $kategori): array
             }
         }
     }
-    $_SESSION['riwayat_sync_dok'][$kategori] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
-    return ['success' => true, 'data' => riwayat_sync_dok_daftar($pegawai, $kategori, $lokal) ?? []];
+    $_SESSION['riwayat_sync_dok'][riwayat_sync_kunci($kategori, $hanya)] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
+    return ['success' => true, 'data' => riwayat_sync_dok_daftar($pegawai, $kategori, $lokal, $hanya) ?? []];
 }
 
 /**

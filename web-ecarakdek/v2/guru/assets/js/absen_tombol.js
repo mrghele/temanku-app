@@ -52,7 +52,9 @@
     }
     if (d.absen_lain && d.absen_lain.pesan) return { aktif: false, judul: d.absen_lain.pesan, ket: d.absen_lain.keterangan || '' };
     if (d.libur) return { aktif: false, judul: 'Hari libur', ket: d.libur_nama || '' };
-    if (d.hari === 'Sabtu' || d.hari === 'Minggu') return { aktif: false, judul: 'Hari libur', ket: 'Akhir pekan (' + d.hari + ')' };
+    // Sabtu hari kerja bagi pola 6 hari (mis. sekolah 6 hari): akhir pekan hanya bila memang tidak ada jadwal hari ini
+    var tanpaJadwal = !opsi.length || opsi.every(function (o) { return /^Tidak ada jadwal/.test(o.alasan || ''); });
+    if (d.hari === 'Minggu' || (d.hari === 'Sabtu' && tanpaJadwal)) return { aktif: false, judul: 'Hari libur', ket: 'Akhir pekan (' + d.hari + ')' };
     var alasan = (opsi.filter(function (o) { return o.aksi !== 'pulang'; })[0] || opsi[0] || {}).alasan || '';
     if (/^Dibuka/.test(alasan)) return { aktif: false, judul: 'Belum waktunya absen', ket: alasan };
     if (/^Ditutup/.test(alasan)) return { aktif: false, judul: 'Lewat jam absen masuk', ket: alasan + ' · absen pulang tetap bisa saat jam pulang dibuka' };

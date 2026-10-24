@@ -503,6 +503,155 @@ func (b *rekapBulan) regulerPeg(nip, unit string, hk int, hari, aksi string) jad
 	return b.reguler(hk, hari, aksi)
 }
 
+/* ------------------------------------------------------
+   HARI KERJA SEKOLAH (5/6 hari) mengikuti Jadwal Absensi jenjang.
+   Jadwal jenjang dicari per hari kerja pola unit (APEL pola_kerja_unit, umumnya 5HK). Bila jenjang
+   sekolah hanya punya jadwal satu jenis hari kerja (mis. hanya "SMP 6 hari"), pola reguler sekolah
+   memakai pola reguler dengan hari kerja itu (6HK): Sabtu menjadi hari kerja di mesin absen & rekap.
+   Bila jenjang punya jadwal 5 DAN 6 hari, pola unit di APEL yang menentukan.
+   Dipasang pada absenData.polaUnit (absen & rekap per pegawai) dan muatKonteksRekap (rekap massal).
+------------------------------------------------------ */
+
+// hariKerjaJenjang: hari kerja satu-satunya jadwal jenjang (TK/SD/SMP); 0 = tidak ada / lebih dari satu.
+func hariKerjaJenjang(jenjang string) int {
+	hk := 0
+	for kunci := range jadwalSekolahSemua() {
+		bagian := strings.SplitN(kunci, "|", 3)
+		if len(bagian) != 3 || bagian[0] != jenjang {
+			continue
+		}
+		n, _ := strconv.Atoi(bagian[1])
+		if hk != 0 && n != hk {
+			return 0
+		}
+		hk = n
+	}
+	return hk
+}
+
+var (
+	polaSemuaMu  sync.Mutex
+	polaSemuaExp time.Time
+	polaSemuaMap map[string]polaKerja
+)
+
+// polaSemua: absenData.polaAll dengan cache 60 detik (dipanggil per unit).
+func polaSemua() map[string]polaKerja {
+	polaSemuaMu.Lock()
+	defer polaSemuaMu.Unlock()
+	if polaSemuaMap == nil || time.Now().After(polaSemuaExp) {
+		if all, err := absenData.polaAll(); err == nil {
+			polaSemuaMap, polaSemuaExp = all, time.Now().Add(60*time.Second)
+		}
+	}
+	return polaSemuaMap
+}
+
+// polaHariKerjaSekolah: ganti pola reguler yang hari kerjanya berbeda dari jadwal jenjang sekolah.
+func polaHariKerjaSekolah(jenjang string, codes []string) []string {
+	hk := hariKerjaJenjang(jenjang)
+	if hk == 0 || len(codes) == 0 {
+		return codes
+	}
+	all := polaSemua()
+	ganti := ""
+	if p, ok := all[strconv.Itoa(hk)+"HK"]; ok && p.reguler() && p.HariKerja == hk {
+		ganti = p.Kode
+	} else {
+		for _, p := range all {
+			if p.reguler() && p.HariKerja == hk && (ganti == "" || p.Kode < ganti) {
+				ganti = p.Kode
+			}
+		}
+	}
+	if ganti == "" {
+		return codes
+	}
+	out := make([]string, 0, len(codes))
+	for _, c := range codes {
+		if p, ok := all[c]; ok && p.reguler() && p.HariKerja != hk {
+			c = ganti
+		}
+		dobel := false
+		for _, x := range out {
+			dobel = dobel || x == c
+		}
+		if !dobel {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func init() {
+	polaUnitAsli := absenData.polaUnit
+	absenData.polaUnit = func(unit string) ([]string, error) {
+		codes, err := polaUnitAsli(unit)
+		if err != nil || !adaJadwalSekolah() {
+			return codes, err
+		}
+		jenjang := jenjangUnit(unit)
+		if jenjang == "" || hariKerjaJenjang(jenjang) == 0 {
+			return codes, nil
+		}
+		if len(codes) == 0 { // sekolah tanpa pola sendiri: pola induk (seperti polaUnitBerjenjang)
+			for _, u := range absenData.unitChain(unit)[1:] {
+				if codes, err = polaUnitAsli(u); err != nil {
+					return nil, err
+				}
+				if len(codes) > 0 {
+					break
+				}
+			}
+		}
+		return polaHariKerjaSekolah(jenjang, codes), nil
+	}
+
+	muatAsli := muatKonteksRekap
+	muatKonteksRekap = func() (*konteksRekap, error) {
+		k, err := muatAsli()
+		if err != nil || k == nil || !adaJadwalSekolah() {
+			return k, err
+		}
+		for id, jenjang := range unitSekolah() {
+			if hariKerjaJenjang(jenjang) != 0 {
+				if codes := k.polaBerjenjang(id); len(codes) > 0 {
+					k.pola[id] = polaHariKerjaSekolah(jenjang, codes)
+				}
+			}
+		}
+		return k, nil
+	}
+}
+
+// unitSekolah: id unit -> jenjang (TK/SD/SMP) untuk unit yang namanya nama sekolah (satu query tbl_unit).
+var unitSekolah = func() map[string]string {
+	out := map[string]string{}
+	if db.DB == nil {
+		return out
+	}
+	rows, err := db.DB.Query(`SELECT CAST(id_unit AS CHAR), COALESCE(nmunit,'') FROM tbl_unit`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, nama string
+		if rows.Scan(&id, &nama) != nil {
+			continue
+		}
+		switch {
+		case jenjangTK.MatchString(nama):
+			out[id] = "TK"
+		case jenjangSD.MatchString(nama):
+			out[id] = "SD"
+		case jenjangSMP.MatchString(nama):
+			out[id] = "SMP"
+		}
+	}
+	return out
+}
+
 // GET /absen/jadwal - semua Jadwal Absensi APEL; yang berkategori TK/SD/SMP dapat dikelola super admin.
 // Admin sekolah: hanya jadwal jenjang sekolahnya (TK/SD/SMP); jadwal reguler APEL tidak ditampilkan.
 func ecarakdekJadwalList(c *gin.Context) {

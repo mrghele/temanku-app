@@ -556,3 +556,15 @@ body.rw-modal-buka{overflow:hidden}
 .rw-dokpilih li.is-ada{opacity:.8}
 .rw-dokpilih__ulang{flex:none;height:26px;padding:0 10px;border-radius:99px;border:1px solid #d0d5dd;background:#fff;font-family:inherit;font-size:11.5px;font-weight:600;color:#475467;cursor:pointer}
 .rw-dokpilih__ulang:hover{background:#f2f4f7}
+
+/* Peringatan "Masih ada usulan" (gaya SIMPEG) */
+.rw-modal--alert .rw-modal__box { max-width: 440px; border-radius: 22px; }
+.rw-modal--alert .rw-modal__head { display: none; }
+.rw-modal--alert .rw-modal__body { padding: 28px 26px 6px; }
+.rw-modal--alert .rw-modal__foot { justify-content: center; border-top: 0; padding: 14px 26px 24px; gap: 10px; }
+.rw-modal--alert .rw-modal__foot .rw-btn { min-width: 110px; justify-content: center; }
+.rw-alert { text-align: center; color: #475569; font-size: .9rem; line-height: 1.55; }
+.rw-alert p { margin: 0 0 10px; }
+.rw-alert__ikon { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center;
+  background: #f59e0b; color: #fff; font-size: 2rem; font-weight: 800; line-height: 1; box-shadow: 0 0 0 8px #fef3c7; }
+.rw-alert__judul { margin: 0 0 8px; font-size: 1.1rem; font-weight: 700; color: #0f172a; }
