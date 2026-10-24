@@ -13,7 +13,7 @@ package asn
      SIMPEG_SYNC_GATEWAY_KEY = sama dengan gateway.key di simpeg_config.php (min. 32 karakter)
 
    Hak per jenis mengikuti SIMPEG:
-     pendidikan, golongan, penghargaan, utama : admin (asn.identitas.edit)
+     pendidikan, golongan, penghargaan, utama : admin (asn.identitas.edit) & guru untuk data dirinya sendiri (portal guru)
      hukdis, kinerja, pak, cpns, jabatan, kursus, diklatpim, pasangan : admin & ASN (dirinya sendiri)
 */
 
@@ -49,7 +49,9 @@ func EcarakdekGuardSinkron() gin.HandlerFunc {
 		case !ok:
 			ecarakdekAbort(c, http.StatusForbidden, "Cakupan akses tidak diketahui")
 		case ecarakdekSinkronAdminSaja[jenis]:
-			if s.Role != EcarakdekSuperAdmin && s.Role != EcarakdekAdminOPD {
+			// Guru/tendik (portal guru /v2/guru, seperti "Segarkan data" & Sync TEMANKU) boleh menyinkronkan
+			// data dirinya sendiri; EcarakdekGuardBody("id") sesudah ini memastikan PNS_ID = milik akun.
+			if s.Role != EcarakdekSuperAdmin && s.Role != EcarakdekAdminOPD && s.Role != EcarakdekPegawai {
 				ecarakdekAbort(c, http.StatusForbidden, "Sinkron data ini hanya untuk admin")
 				return
 			}

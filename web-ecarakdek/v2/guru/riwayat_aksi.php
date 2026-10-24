@@ -55,8 +55,9 @@ if (rw_input('aksi') === 'status') {
     $simpeg = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     $msSimpeg = (int)round((microtime(true) - $mulai) * 1000);
-    $bkn = false;   // e-Carakdek tidak terhubung SIASN BKN (sinkron lewat admin sekolah / BKPSDM)
-    $msBkn = 0;
+    // e-Carakdek tidak terhubung langsung ke BKN: SIASN dihubungi server SIMPEG (gerbang sync) lewat API Go.
+    $bkn = $simpeg >= 200 && $simpeg < 300;
+    $msBkn = $msSimpeg;
     $data = [
         'simpeg' => ['ok' => $simpeg >= 200 && $simpeg < 300, 'ms' => $msSimpeg],
         'bkn' => ['ok' => $bkn, 'ms' => $msBkn],
@@ -140,10 +141,7 @@ if ($aksi === 'ref') {
     rw_keluar(['success' => true, 'data' => $out]);
 }
 
-/* ---------- e-Carakdek: tanpa sinkron SIASN & tanpa ubah identitas oleh guru ---------- */
-if (in_array($aksi, ['sync_dok_list', 'sync_data', 'sync_dok'], true)) {
-    rw_keluar(['success' => false, 'message' => 'Sinkron dari SIASN dilakukan oleh admin sekolah / BKPSDM. Ajukan perubahan lewat usulan.'], 403);
-}
+/* ---------- e-Carakdek: identitas diubah admin sekolah (sinkron SIASN lewat gerbang SIMPEG, includes/riwayat_sync.php) ---------- */
 if ($aksi === 'identitas_simpan' && !RIWAYAT_UBAH_IDENTITAS) {
     rw_keluar(['success' => false, 'message' => 'Perubahan identitas diajukan melalui admin sekolah.'], 403);
 }

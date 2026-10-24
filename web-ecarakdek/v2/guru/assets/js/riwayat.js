@@ -817,7 +817,7 @@
         bar.append(x); return x;
       };
       if ((IZIN[j] || {}).tambah) b('tambah', 'Tambah', 'bi-plus-lg', 'rw-sbtn--tambah');
-      if (CFG.sinkron !== false) b('sync', 'Sync dari SIASN', 'bi-cloud-arrow-down-fill', 'rw-sbtn--sync');   // e-Carakdek: tidak terhubung SIASN
+      b('sync', 'Sync dari SIASN', 'bi-cloud-arrow-down-fill', 'rw-sbtn--sync');
       var nU = USULAN.filter(function (u) { return u.jenis === j && bisaUbahUsulan(u); }).length;
       b('usulan-j', mode === 'usulan' ? 'Tampilkan Riwayat' : 'Tampilkan Usulan', mode === 'usulan' ? 'bi-list-ul' : 'bi-journal-text', 'rw-sbtn--usulan', nU ? el('b', 'rw-sbtn__n', String(nU)) : null);
       var seg = b('segar', '', 'bi-arrow-clockwise', 'rw-sbtn--ikon'); seg.title = 'Muat ulang dari SIMPEG'; seg.setAttribute('aria-label', 'Muat ulang');
