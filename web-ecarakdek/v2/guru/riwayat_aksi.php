@@ -159,6 +159,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') rw_keluar(['success' => false, 'messa
 require_post();
 
 /* ---------- sync SIASN ---------- */
+if ($aksi === 'sync_dok_siapkan') {   // Tahap 2 saja: daftar dokumen SIASN tanpa menarik data
+    require_once __DIR__ . '/includes/riwayat_sync.php';
+    set_time_limit(180);
+    $kategori = rw_input('kategori');
+    if (!isset($kategoriTampil[$kategori])) rw_keluar(['success' => false, 'message' => 'Kategori tidak dikenal'], 400);
+    if (!rw_batas('sync_data', 20, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu sering sinkron. Tunggu beberapa menit.'], 429);
+    $h = riwayat_sync_dok_siapkan($pegawai, $kategori);
+    rw_keluar($h, $h['success'] ? 200 : 502);
+}
 if ($aksi === 'sync_data' || $aksi === 'sync_dok') {
     require_once __DIR__ . '/includes/riwayat_sync.php';
     set_time_limit(180);

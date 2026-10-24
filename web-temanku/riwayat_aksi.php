@@ -13,6 +13,7 @@ middleware('riwayat.view');
  *   POST aksi=simpan                       ajukan / perbaiki usulan tambah|ubah|hapus (multipart, dokumen PDF)
  *   POST aksi=batal                        batalkan usulan sendiri yang masih diajukan / dikembalikan
  *   POST aksi=sync_data | sync_dok         sync SIASN kategori (langkah 1 data / satu dokumen langkah 2)
+ *   POST aksi=sync_dok_siapkan             Tahap 2 saja: daftar dokumen SIASN untuk riwayat yang sudah ada
  *   GET  aksi=sync_dok_list&kategori=..    daftar dokumen SIASN hasil langkah 1 (untuk dipilih)
  *   POST aksi=identitas_simpan             ubah identitas (SIMPEG, opsional kirim ke SIASN BKN)
  * Semua aksi memakai PNS_ID pegawai yang login; jenis & riwayat yang diubah dicocokkan dengan data milik sendiri.
@@ -155,6 +156,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') rw_keluar(['success' => false, 'messa
 require_post();
 
 /* ---------- sync SIASN ---------- */
+if ($aksi === 'sync_dok_siapkan') {   // Tahap 2 saja: daftar dokumen SIASN tanpa menarik data
+    require_once __DIR__ . '/includes/riwayat_sync.php';
+    set_time_limit(180);
+    $kategori = rw_input('kategori');
+    if (!isset($kategoriTampil[$kategori])) rw_keluar(['success' => false, 'message' => 'Kategori tidak dikenal'], 400);
+    if (!rw_batas('sync_data', 20, 600)) rw_keluar(['success' => false, 'message' => 'Terlalu sering sinkron. Tunggu beberapa menit.'], 429);
+    $h = riwayat_sync_dok_siapkan($pegawai, $kategori);
+    rw_keluar($h, $h['success'] ? 200 : 502);
+}
 if ($aksi === 'sync_data' || $aksi === 'sync_dok') {
     require_once __DIR__ . '/includes/riwayat_sync.php';
     set_time_limit(180);

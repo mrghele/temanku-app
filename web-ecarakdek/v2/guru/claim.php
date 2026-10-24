@@ -43,8 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {   // CSRF diperiksa bootstrap.php
 }
 
 require __DIR__ . '/includes/repository.php';
-$page = 'cuti'; $pageTitle = 'Claim Presensi';
+$page = 'absensi'; $pageTitle = 'Claim Presensi';
 require __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/unggah.php';
 $list = api_request(API_TEMANKU, 'GET', '/portal/claim')['data'] ?? [];
 $hariIni = (new DateTimeImmutable('now', new DateTimeZone('Asia/Makassar')));
 echo layanan_css();
@@ -68,7 +69,7 @@ echo layanan_css();
       <option value="mewakili">Mewakili pimpinan</option><option value="lainnya">Tugas lainnya</option></select></label>
     <label>Kegiatan<textarea name="kegiatan" rows="2" maxlength="500" required placeholder="Contoh: Rapat Pimpinan (RAPIM) membahas APBD"></textarea></label>
     <label>Tempat<input type="text" name="tempat" maxlength="255" required placeholder="Contoh: Ruang Pola Kantor Bupati"></label>
-    <label>Bukti (undangan / surat / foto kegiatan; PDF, JPG, PNG, maks. 2 MB)<input type="file" name="bukti" accept="application/pdf,image/jpeg,image/png" required></label>
+    <?= unggah_field('bukti', 'Bukti undangan / surat / foto kegiatan', 'application/pdf,image/jpeg,image/png', 'PDF, JPG, atau PNG', true) ?>
     <input type="hidden" name="latitude" id="claim-lat"><input type="hidden" name="longitude" id="claim-lng">
     <button type="submit">Kirim claim</button>
   </form>

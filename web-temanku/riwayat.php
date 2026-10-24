@@ -210,7 +210,7 @@ $navItems = $pegawai ? ['identitas' => ['Identitas', 'bi-person-vcard-fill', 'to
       <small><?= $detail === null ? 'Gagal dimuat' : count($detail) . ' riwayat' ?><?= $menunggu ? ' · ' . (int)$menunggu . ' usulan diproses' : '' ?></small>
     </div>
     <div class="rw-toolbar" role="toolbar" aria-label="Aksi riwayat">
-      <button type="button" class="rw-pill rw-pill--kuning" data-rw="sync"><i class="bi bi-arrow-repeat"></i><span>Sync</span></button>
+      <button type="button" class="rw-pill rw-pill--kuning" data-rw="sync" aria-haspopup="menu"><i class="bi bi-arrow-repeat"></i><span>Sync</span><i class="bi bi-caret-down-fill rw-caret"></i></button>
       <button type="button" class="rw-pill rw-pill--biru" data-rw="usulan" aria-expanded="false" aria-controls="rw-usulan"><i class="bi bi-inboxes"></i><span>Usulan</span><?php if (count($usulanKat)): ?><b class="rw-count"><?= count($usulanKat) ?></b><?php endif; ?></button>
       <?php if ($bisaTambah): ?><button type="button" class="rw-pill rw-pill--utama" data-rw="tambah"><i class="bi bi-plus-lg"></i><span>Tambah</span></button><?php endif; ?>
     </div>

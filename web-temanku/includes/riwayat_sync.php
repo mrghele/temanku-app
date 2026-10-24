@@ -515,18 +515,64 @@ const RIWAYAT_SYNC_DOK_LABEL = [
     'sk_cpns' => 'SK CPNS', 'sk_pns' => 'SK PNS', 'spmt' => 'SPMT', 'akta' => 'Buku/akta nikah',
 ];
 
-/** Daftar dokumen SIASN dari tahap 1 untuk dipilih di tahap 2: [idx, label, dokumen, sudah ditarik]. */
-function riwayat_sync_dok_daftar(array $pegawai, string $kategori): ?array
+/** Dokumen yang sudah ada pada riwayat lokal (SIMPEG): ['id_rw|kolom' => true]; null bila riwayat gagal dimuat. */
+function riwayat_sync_lokal(array $pegawai, string $kategori): ?array
+{
+    $rows = riwayat_data($pegawai, $kategori, true);
+    if ($rows === null) return null;
+    $ada = [];
+    foreach ($rows as $r) {
+        foreach ($r['dok'] ?? [] as [, $kolom]) $ada[$r['id_rw'] . '|' . $kolom] = true;
+        $ada[$r['id_rw']] = true;
+    }
+    return $ada;
+}
+
+/**
+ * Daftar dokumen SIASN untuk tahap 2: [idx, label, dokumen, sudah]. "sudah" = berkas sudah ada di riwayat SIMPEG
+ * atau pernah ditarik ke repository; seperti SIMPEG, yang sudah ada tidak ditarik ulang otomatis.
+ */
+function riwayat_sync_dok_daftar(array $pegawai, string $kategori, ?array $lokal = null): ?array
 {
     $simpan = $_SESSION['riwayat_sync_dok'][$kategori] ?? null;
     if (!is_array($simpan) || ($simpan['pns_id'] ?? '') !== $pegawai['pns_id']) return null;
     $map = riwayat_dokmap();
+    $lokal = $lokal ?? riwayat_sync_lokal($pegawai, $kategori) ?? [];
     $out = [];
     foreach ($simpan['docs'] as $i => $d) {
         $out[] = ['idx' => $i, 'label' => (string)$d['label'], 'dokumen' => RIWAYAT_SYNC_DOK_LABEL[$d['kolom']] ?? $d['kolom'],
-            'sudah' => preg_match(RIWAYAT_POLA_REPO, (string)($map[sha1($d['uri'])] ?? '')) === 1];
+            'sudah' => isset($lokal[$d['id_rw'] . '|' . $d['kolom']]) || preg_match(RIWAYAT_POLA_REPO, (string)($map[sha1($d['uri'])] ?? '')) === 1];
     }
     return $out;
+}
+
+/**
+ * Tahap 2 saja (tanpa menarik data): ambil daftar dokumen dari SIASN untuk riwayat yang sudah ada di SIMPEG.
+ * @return array{success:bool, message?:string, offline?:bool, data?:array}
+ */
+function riwayat_sync_dok_siapkan(array $pegawai, string $kategori): array
+{
+    $tok = rs_token();
+    if ($tok === null) return ['success' => false, 'offline' => true, 'message' => 'API BKN tidak terhubung.'];
+    $lokal = riwayat_sync_lokal($pegawai, $kategori);
+    if ($lokal === null) return ['success' => false, 'message' => 'Riwayat SIMPEG belum dapat dimuat. Coba lagi.'];
+    $docs = [];
+    foreach (riwayat_sync_jenis($kategori) as $jenis) {
+        $label = RIWAYAT_JENIS_LABEL[$jenis] ?? $jenis;
+        $src = riwayat_sync_ambil($jenis, $pegawai['nip'], $pegawai['pns_id'], $tok);
+        if (!$src['ok']) {
+            if (!empty($src['offline'])) siasn_tandai_offline();
+            return ['success' => false, 'offline' => !empty($src['offline']), 'message' => $label . ': ' . $src['pesan']];
+        }
+        foreach ($src['items'] as $it) {
+            if (!isset($lokal[$it['id_rw']])) continue;   // riwayat belum ada di SIMPEG: jalankan Tahap 1 + 2
+            foreach ($it['_dok'] ?? [] as $kolom => $dok) {
+                $docs[] = ['jenis' => $jenis, 'id_rw' => $it['id_rw'], 'kolom' => $kolom, 'uri' => $dok['uri'], 'dok_id' => $dok['dok_id'], 'label' => $it['_label'] ?? $label];
+            }
+        }
+    }
+    $_SESSION['riwayat_sync_dok'][$kategori] = ['pns_id' => $pegawai['pns_id'], 'docs' => $docs];
+    return ['success' => true, 'data' => riwayat_sync_dok_daftar($pegawai, $kategori, $lokal) ?? []];
 }
 
 /**

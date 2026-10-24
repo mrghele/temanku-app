@@ -51,12 +51,14 @@ if (!headers_sent()) {
     header('Pragma: no-cache');
     // Rekam/absen wajah (MediaPipe) butuh WebAssembly & worker blob; selain itu sama dengan CSP e-Carakdek.
     $sso = preg_replace('#^(https?://[^/]+).*$#', '$1', (string)simpeg_config('keycloak.base', 'https://sso-bkd.kepulauanselayarkab.go.id'));
+    // CDN: pdf.js, jsPDF, jQuery/Select2 (cdnjs) untuk Riwayat; Leaflet (unpkg) untuk peta Absensi.
+    $cdn = 'https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com';
     header("Content-Security-Policy: default-src 'self'; "
-        . "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; "
-        . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
-        . "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "
-        . "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://server.arcgisonline.com https://cdn.jsdelivr.net; "
-        . "media-src 'self' blob: mediastream:; worker-src 'self' blob:; connect-src 'self' blob: data:; "
+        . "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' $cdn; "
+        . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com $cdn; "
+        . "font-src 'self' data: https://fonts.gstatic.com $cdn; "
+        . "img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://server.arcgisonline.com $cdn; "
+        . "media-src 'self' blob: mediastream:; worker-src 'self' blob: $cdn; connect-src 'self' blob: data: $cdn; "
         . "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' " . $sso);
 }
 

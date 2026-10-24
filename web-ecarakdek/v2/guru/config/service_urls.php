@@ -19,7 +19,7 @@ return [
     'sp4n' => 'https://www.lapor.go.id/',
     'asnkarier' => 'https://asnkarier.bkn.go.id/',
     // Guru & tendik: data GTK (Dapodik) dan platform belajar/kinerja guru Kemendikdasmen.
-    'infogtk' => 'https://info.gtk.kemdikbud.go.id/',
-    'ruanggtk' => 'https://guru.kemdikbud.go.id/',
+    'infogtk' => 'https://info.gtk.kemendikdasmen.go.id/',
+    'ruanggtk' => 'https://guru.kemendikdasmen.go.id/',
     'simola' => 'https://monitoring-siasn.bkn.go.id/',
 ];

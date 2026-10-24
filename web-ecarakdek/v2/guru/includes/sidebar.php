@@ -2,7 +2,6 @@
 $nav = [
     ['beranda',    'index.php',      'Beranda',     'bi-house-door-fill', ''],
     ['absensi',    'absensi.php',    'Absensi',     'bi-fingerprint',     ''],
-    ['cuti',       'cuti.php',       'Cuti & Dinas', 'bi-calendar2-week-fill', ''],
     ['layanan',    'layanan.php',    'Layanan',     'bi-grid-fill',       ''],
     ['riwayat',    'riwayat.php',    'Riwayat ASN', 'bi-clock-history',   ''],
     ['notifikasi', 'notifikasi.php', 'Notifikasi',  'bi-bell-fill',       $belumBaca > 0 ? (string) $belumBaca : ''],

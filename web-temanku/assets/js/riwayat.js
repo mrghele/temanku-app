@@ -103,6 +103,12 @@
     Object.keys(extra || {}).forEach(function (k) { u.searchParams.set(k, extra[k]); });
     window.location.replace(u.href);
   }
+  // Setelah usulan tersimpan/dibatalkan: muat ulang tanpa parameter tambahan di URL,
+  // seksi jenis tersebut dibuka dalam tampilan Usulan (diingat lewat sessionStorage).
+  function muatUlangUsulan(jenis) {
+    try { sessionStorage.setItem('rw-buka-usulan', JSON.stringify({ kategori: CFG.kategori, jenis: jenis || '' })); } catch (e) {}
+    muatUlang();
+  }
   function cekApi() { if (window.cekStatusApi) window.cekStatusApi(true); }
 
   /* ---------- pustaka dari CDN (dimuat saat dibutuhkan) ---------- */
@@ -799,7 +805,18 @@
     return wrap;
   }
   daftar.halJ = {}; daftar.modeJ = {};
-  if (CFG.bukaUsulan) USULAN.forEach(function (u) { daftar.modeJ[u.jenis] = 'usulan'; });
+  (function () {
+    var buka = null;
+    try { buka = JSON.parse(sessionStorage.getItem('rw-buka-usulan') || 'null'); sessionStorage.removeItem('rw-buka-usulan'); } catch (e) {}
+    if (buka && buka.kategori === CFG.kategori) {
+      if (buka.jenis) daftar.modeJ[buka.jenis] = 'usulan';
+      else USULAN.forEach(function (u) { daftar.modeJ[u.jenis] = 'usulan'; });
+    } else if (CFG.bukaUsulan) USULAN.forEach(function (u) { daftar.modeJ[u.jenis] = 'usulan'; });
+    // tautan lama ...&usulan=1: rapikan URL
+    if (CFG.bukaUsulan && window.history.replaceState) {
+      var bersih = new URL(window.location.href); bersih.searchParams.delete('usulan'); window.history.replaceState(null, '', bersih.href);
+    }
+  })();
   function renderSeksi(cocok, q) {
     var urutan = (CFG.jenis || []).slice().sort(function (a, b) { return (a === 'diklatpim' ? -1 : 0) - (b === 'diklatpim' ? -1 : 0); });
     urutan.forEach(function (j) {
@@ -817,7 +834,7 @@
         bar.append(x); return x;
       };
       if ((IZIN[j] || {}).tambah) b('tambah', 'Tambah', 'bi-plus-lg', 'rw-sbtn--tambah');
-      b('sync', 'Sync dari SIASN', 'bi-cloud-arrow-down-fill', 'rw-sbtn--sync');
+      var sy = b('sync', 'Sync dari SIASN', 'bi-cloud-arrow-down-fill', 'rw-sbtn--sync', ikon('bi-caret-down-fill rw-caret')); sy.setAttribute('aria-haspopup', 'menu');
       var nU = USULAN.filter(function (u) { return u.jenis === j && bisaUbahUsulan(u); }).length;
       b('usulan-j', mode === 'usulan' ? 'Tampilkan Riwayat' : 'Tampilkan Usulan', mode === 'usulan' ? 'bi-list-ul' : 'bi-journal-text', 'rw-sbtn--usulan', nU ? el('b', 'rw-sbtn__n', String(nU)) : null);
       var seg = b('segar', '', 'bi-arrow-clockwise', 'rw-sbtn--ikon'); seg.title = 'Muat ulang dari SIMPEG'; seg.setAttribute('aria-label', 'Muat ulang');
@@ -1344,7 +1361,7 @@
       post(fd).then(function (j) {
         modalSibuk = false;
         toast(j.message || 'Usulan tersimpan.', true);
-        setTimeout(function () { muatUlang({ usulan: '1' }); }, 700);
+        setTimeout(function () { muatUlangUsulan(jenis); }, 700);
       }).catch(function (err) {
         sibuk(false, kirim);
         if (!tandaiError(form, err.field, err.message)) { galat.replaceChildren(ikon('bi-exclamation-triangle'), el('span', '', err.message)); galat.hidden = false; galat.scrollIntoView({ block: 'nearest' }); }
@@ -1377,7 +1394,7 @@
       fd.set('jenis', u ? u.jenis : row.jenis); fd.set('alasan', ta.value.trim());
       if (u) fd.set('usulan_id', u.id); else { fd.set('aksi_usul', 'hapus'); fd.set('ref_id', row.id_rw); }
       sibuk(true, kirim, 'Mengirim…');
-      post(fd).then(function (j) { modalSibuk = false; toast(j.message, true); setTimeout(function () { muatUlang({ usulan: '1' }); }, 700); })
+      post(fd).then(function (j) { modalSibuk = false; toast(j.message, true); setTimeout(function () { muatUlangUsulan(u ? u.jenis : row.jenis); }, 700); })
         .catch(function (err) { sibuk(false, kirim); tandaiError(box, 'alasan', err.message); });
     };
     kirim.addEventListener('click', jalan); box.addEventListener('submit', jalan);
@@ -1648,7 +1665,7 @@
     ya.addEventListener('click', function () {
       var fd = fdBaru('batal'); fd.set('usulan_id', u.id);
       sibuk(true, ya, 'Membatalkan…');
-      post(fd).then(function (j) { modalSibuk = false; toast(j.message, true); setTimeout(function () { muatUlang({ usulan: '1' }); }, 600); })
+      post(fd).then(function (j) { modalSibuk = false; toast(j.message, true); setTimeout(function () { muatUlangUsulan(u.jenis); }, 600); })
         .catch(function (err) { sibuk(false, ya); toast(err.message, false); });
     });
     bukaModal('Batalkan usulan', box, [tombol('Kembali', '', null, function () { lihatUsulan(u); }), ya]);
@@ -1695,15 +1712,43 @@
     var ik = $('i', tombolU); if (ik) ik.className = 'bi ' + (buka ? 'bi-list-ul' : 'bi-inboxes');
     if (buka) renderUsulan();
   }
-  if (CFG.bukaUsulan) togelUsulan(true);
 
-  /* ---------- sync SIASN: langkah 1 data, langkah 2 dokumen (dipilih), seperti SIMPEG ---------- */
-  function bukaSync() {
+  /* ---------- sync SIASN (seperti SIMPEG) ----------
+     Menu Sync: "Tahap 1 + 2" = tarik data lalu otomatis lanjut menarik dokumen;
+     "Tahap 2" = tarik dokumen saja. Dokumen yang sudah ada tidak ditarik ulang (bisa dipaksa per dokumen). */
+  var menuSyncEl = null;
+  function tutupMenuSync() { if (menuSyncEl) { menuSyncEl.remove(); menuSyncEl = null; } }
+  function menuSync(btn) {
+    if (menuSyncEl && menuSyncEl._btn === btn) { tutupMenuSync(); return; }
+    tutupMenuSync();
+    var m = el('div', 'rw-syncmenu'); m.setAttribute('role', 'menu'); m._btn = btn;
+    [['penuh', 'Tahap 1 + 2', 'Tarik data lalu dokumen', 'bi-cloud-arrow-down-fill'],
+     ['dok', 'Tahap 2', 'Tarik dokumen saja (ijazah, SK, transkrip, …)', 'bi-file-earmark-arrow-down']].forEach(function (x) {
+      var b = el('button', 'rw-syncmenu__item'); b.type = 'button'; b.setAttribute('role', 'menuitem');
+      var t = el('span'); t.append(el('b', '', x[1]), document.createTextNode(' · ' + x[2]));
+      b.append(ikon(x[3]), t);
+      b.addEventListener('click', function () { tutupMenuSync(); bukaSync(x[0]); });
+      m.append(b);
+    });
+    document.body.append(m);
+    var r = btn.getBoundingClientRect(), lebar = Math.min(340, window.innerWidth - 16);
+    m.style.width = lebar + 'px';
+    m.style.top = (r.bottom + window.scrollY + 6) + 'px';
+    m.style.left = Math.max(8, Math.min(r.right + window.scrollX - lebar, window.innerWidth - lebar - 8)) + 'px';
+    menuSyncEl = m;
+    $('button', m).focus();
+  }
+  document.addEventListener('click', function (e) { if (menuSyncEl && !menuSyncEl.contains(e.target) && !menuSyncEl._btn.contains(e.target)) tutupMenuSync(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && menuSyncEl) { var b = menuSyncEl._btn; tutupMenuSync(); b.focus(); } });
+  window.addEventListener('resize', tutupMenuSync);
+
+  function bukaSync(mode) {
     var nama = String(CFG.judul || '').toLowerCase();
+    var hanyaDok = mode === 'dok';
     var box = el('div', 'rw-sync');
-    var ik = el('div', 'rw-sync__ikon'); ik.append(ikon('bi-arrow-repeat'));
-    var judul = el('h4', 'rw-sync__judul', 'Sync ' + nama + '?');
-    var teks = el('p', 'rw-sync__teks', 'Data ditarik dari SIASN BKN lalu disimpan ke SIMPEG. Riwayat yang tidak ada lagi di SIASN ikut terhapus dari SIMPEG.');
+    var ik = el('div', 'rw-sync__ikon'); ik.append(el('span', 'rw-spin'));
+    var judul = el('h4', 'rw-sync__judul', hanyaDok ? 'Menyiapkan daftar dokumen…' : 'Langkah 1: menarik data…');
+    var teks = el('p', 'rw-sync__teks', 'Mohon tunggu, jangan tutup halaman ini.');
     var kon = koneksi(true);
     function tahap(no, j, k) {
       var t = el('div', 'rw-tahap'), hd = el('div', 'rw-tahap__head'), tx = el('div');
@@ -1713,111 +1758,115 @@
       var isi = el('div', 'rw-tahap__isi'); isi.hidden = true; t.append(isi);
       return { el: t, no: n, ket: $('small', tx), isi: isi };
     }
-    var t1 = tahap(1, 'Data riwayat', 'Tarik & simpan data dari SIASN');
-    var t2 = tahap(2, 'Dokumen', 'Pilih dokumen PDF yang ditarik ke repository');
-    t1.el.classList.add('is-aktif'); t2.el.classList.add('is-mati');
+    var t1 = tahap(1, 'Data riwayat', hanyaDok ? 'Dilewati (Tahap 2 saja)' : 'Tarik & simpan data dari SIASN');
+    var t2 = tahap(2, 'Dokumen', 'Tarik dokumen PDF yang belum ada ke repository');
+    if (hanyaDok) { t1.el.classList.add('is-mati'); t2.el.classList.add('is-aktif'); }
+    else { t1.el.classList.add('is-aktif'); t2.el.classList.add('is-mati'); }
     box.append(ik, judul, teks, kon.el, t1.el, t2.el);
-
-    var batal = tombol('Batal', '', null, tutupModal);
-    var mulai = tombol('Mulai langkah 1', 'rw-btn--primary', 'bi-arrow-repeat');
     var berubah = false;
     function selesai(ok, j, k) {
       ik.className = 'rw-sync__ikon ' + (ok ? 'is-ok' : 'is-gagal'); ik.replaceChildren(ikon(ok ? 'bi-check-lg' : 'bi-exclamation-lg'));
       judul.textContent = j; teks.textContent = k;
     }
-    function tutupAkhir() {
-      var b = tombol(berubah ? 'Selesai' : 'Tutup', berubah ? 'rw-btn--primary' : '', berubah ? 'bi-check2' : null, function () { if (berubah) muatUlang({ segar: '1' }); else tutupModal(); });
-      $('#rw-modal-foot').replaceChildren(b);
-      modalSibuk = false;
-      if (!berubah) return;
-      // badge ikut tampil setelah halaman dimuat ulang
-      (box._badges || []).forEach(function (x) { badge(x[0], x[1], x[2], true); });
-    }
     function catat(j, k, ok) { (box._badges = box._badges || []).push([j, k, ok]); }   // tampil sebagai badge setelah halaman dimuat ulang
-
-    function langkah2(jml) {
-      t1.el.classList.remove('is-aktif'); t1.el.classList.add('is-ok'); t1.no.replaceChildren(ikon('bi-check-lg'));
-      t2.el.classList.remove('is-mati'); t2.el.classList.add('is-aktif');
-      ik.replaceChildren(ikon('bi-file-earmark-arrow-down'));
-      judul.textContent = 'Langkah 2: dokumen'; teks.textContent = 'Centang dokumen yang ingin ditarik dari SIASN. Dokumen yang sudah ada di repository tidak perlu ditarik ulang.';
-      t2.isi.hidden = false; t2.isi.replaceChildren(el('p', 'rw-muted', 'Memuat daftar dokumen…'));
-      var lewati = tombol('Lewati', '', null, function () { selesai(true, 'Sync selesai', 'Data riwayat sudah disinkronkan; dokumen tidak ditarik.'); tutupAkhir(true); });
-      var tarik = tombol('Tarik dokumen', 'rw-btn--primary', 'bi-download');
-      tarik.disabled = true;
-      $('#rw-modal-foot').replaceChildren(lewati, tarik);
+    function kaki(tombolLain) {
+      var b = tombol(berubah ? 'Selesai' : 'Tutup', berubah ? 'rw-btn--primary' : '', berubah ? 'bi-check2' : null, function () {
+        if (berubah) { (box._badges || []).forEach(function (x) { badge(x[0], x[1], x[2], true); }); muatUlang({ segar: '1' }); } else tutupModal();
+      });
+      $('#rw-modal-foot').replaceChildren.apply($('#rw-modal-foot'), (tombolLain || []).concat([b]));
+    }
+    function gagalTahap(t, e, ulang) {
+      t.isi.hidden = false; t.isi.replaceChildren(info(e.message, 'kuning', 'bi-exclamation-triangle'));
+      t.no.replaceChildren(ikon('bi-exclamation-lg'));
+      var off = e.data && e.data.offline;
+      if (off) cekApi();
+      badge(off ? 'API BKN tidak terhubung' : 'Sync belum berhasil', e.message, false);
+      selesai(false, off ? 'API BKN tidak terhubung' : 'Sync belum berhasil', berubah ? 'Data riwayat sudah tersimpan; dokumen belum ditarik.' : 'Data di SIMPEG tidak diubah.');
       modalSibuk = false;
-      get({ aksi: 'sync_dok_list', kategori: CFG.kategori }).then(function (j) {
+      kaki([tombol('Coba lagi', 'rw-btn--primary', 'bi-arrow-repeat', ulang)]);
+    }
+
+    /* Tahap 2: daftar dokumen, lalu otomatis menarik yang belum ada */
+    function langkah2(siapkan) {
+      if (!hanyaDok) { t1.el.classList.remove('is-aktif'); t1.el.classList.add('is-ok'); t1.no.replaceChildren(ikon('bi-check-lg')); }
+      t2.el.classList.remove('is-mati'); t2.el.classList.add('is-aktif');
+      ik.replaceChildren(el('span', 'rw-spin'));
+      judul.textContent = 'Langkah 2: dokumen'; teks.textContent = 'Mengambil daftar dokumen dari SIASN…';
+      t2.isi.hidden = false; t2.isi.replaceChildren(el('p', 'rw-muted', 'Memuat daftar dokumen…'));
+      modalSibuk = true; kaki([]);
+      var janji;
+      if (siapkan) { var f = fdBaru('sync_dok_siapkan'); f.set('kategori', CFG.kategori); janji = post(f); }
+      else janji = get({ aksi: 'sync_dok_list', kategori: CFG.kategori });
+      janji.then(function (j) {
         var list = j.data || [];
         if (!list.length) {
           t2.ket.textContent = 'Tidak ada dokumen di SIASN';
-          t2.isi.replaceChildren(el('p', 'rw-muted', 'SIASN tidak menyediakan dokumen untuk riwayat ini.'));
-          t2.el.classList.add('is-ok');
-          selesai(true, 'Sync selesai', 'Data riwayat sudah disinkronkan.');
-          tutupAkhir(true); return;
+          t2.isi.replaceChildren(el('p', 'rw-muted', hanyaDok ? 'SIASN tidak menyediakan dokumen untuk riwayat yang ada. Bila riwayat belum lengkap, jalankan Tahap 1 + 2.' : 'SIASN tidak menyediakan dokumen untuk riwayat ini.'));
+          t2.el.classList.remove('is-aktif'); t2.el.classList.add('is-ok'); t2.no.replaceChildren(ikon('bi-check-lg'));
+          selesai(true, 'Sync selesai', hanyaDok ? 'Tidak ada dokumen untuk ditarik.' : 'Data riwayat ' + nama + ' sudah sesuai SIASN.');
+          modalSibuk = false; kaki(); return;
         }
-        var baru = list.filter(function (d) { return !d.sudah; }).length;
-        t2.ket.textContent = list.length + ' dokumen · ' + baru + ' belum ada di repository';
-        var semua = el('label', 'rw-check'); semua.style.padding = '0';
-        var cbS = el('input'); cbS.type = 'checkbox'; semua.append(cbS, el('span', '', 'Pilih semua'));
         var ul = el('ul', 'rw-dokpilih');
         list.forEach(function (d) {
-          var li = el('li'), cb = el('input'); cb.type = 'checkbox'; cb.checked = !d.sudah; cb.value = d.idx; cb.id = 'rw-sd-' + d.idx;
-          var lb = el('label'); lb.htmlFor = cb.id; lb.style.flex = '1'; lb.style.minWidth = '0'; lb.style.cursor = 'pointer';
+          var li = el('li'), lb = el('div'); lb.style.flex = '1'; lb.style.minWidth = '0';
           lb.append(document.createTextNode(d.dokumen), el('small', '', d.label));
           var st = el('b', '', d.sudah ? '✓' : '');
-          if (d.sudah) { li.className = 'ok'; st.title = 'Sudah ada di repository'; lb.append(el('small', '', 'Sudah ada — centang untuk tarik ulang')); }
-          li.append(cb, lb, st); li._cb = cb; li._st = st; li._d = d;
+          li.append(lb, st); li._st = st; li._d = d; li._lb = lb;
+          if (d.sudah) {
+            li.className = 'ok is-ada'; st.title = 'Sudah ada di repository — tidak ditarik ulang';
+            var ulangBtn = el('button', 'rw-dokpilih__ulang', 'Tarik ulang'); ulangBtn.type = 'button';
+            ulangBtn.addEventListener('click', function () { if (!modalSibuk) jalankan([li]); });
+            lb.append(el('small', '', 'Sudah ada')); li.insertBefore(ulangBtn, st);
+          }
           ul.append(li);
         });
-        var prog = el('div', 'rw-progress'); var bar = el('span'); prog.append(bar); prog.hidden = true;
-        t2.isi.replaceChildren(semua, ul, prog);
-        function hitung() {
-          var n = $$('input', ul).filter(function (c) { return c.checked; }).length;
-          $('span', tarik).textContent = n ? 'Tarik ' + n + ' dokumen' : 'Tarik dokumen';
-          tarik.disabled = !n;
-          cbS.checked = n === list.length; cbS.indeterminate = n > 0 && n < list.length;
-        }
-        cbS.addEventListener('change', function () { $$('input', ul).forEach(function (c) { c.checked = cbS.checked; }); hitung(); });
-        ul.addEventListener('change', hitung);
-        hitung();
-        tarik.addEventListener('click', function () {
-          var pilih = $$('li', ul).filter(function (li) { return li._cb.checked; });
-          modalSibuk = true; tarik.disabled = lewati.disabled = true; cbS.disabled = true;
-          $$('input', ul).forEach(function (c) { c.disabled = true; });
-          prog.hidden = false; bar.style.width = '3%';
+        var prog = el('div', 'rw-progress'); var bar = el('span'); prog.append(bar);
+        t2.isi.replaceChildren(ul, prog);
+        var semuaLi = $$('li', ul), antre = semuaLi.filter(function (li) { return !li._d.sudah; });
+        t2.ket.textContent = list.length + ' dokumen · ' + antre.length + ' belum ada di repository';
+        var ok = 0, gagalLi = [];
+        function jalankan(daftar) {
+          modalSibuk = true; kaki([]);
           ik.replaceChildren(el('span', 'rw-spin')); judul.textContent = 'Menarik dokumen…';
-          var i = 0, ok = 0, gagal = 0, putus = false;
+          gagalLi = []; var i = 0, putus = false; bar.style.width = '3%';
           function lanjut() {
-            if (i >= pilih.length) return Promise.resolve();
-            var li = pilih[i];
-            if (putus) { li.className = 'gagal'; li._st.textContent = '!'; i++; gagal++; return lanjut(); }
+            if (i >= daftar.length) return Promise.resolve();
+            var li = daftar[i];
+            if (putus) { li.className = 'gagal'; li._st.textContent = '!'; li._st.title = 'Dilewati: API BKN terputus'; gagalLi.push(li); i++; return lanjut(); }
             li.className = 'proses'; li._st.textContent = '⏳'; li.scrollIntoView({ block: 'nearest' });
-            teks.textContent = 'Dokumen ' + (i + 1) + ' dari ' + pilih.length + ': ' + li._d.dokumen;
+            teks.textContent = 'Dokumen ' + (i + 1) + ' dari ' + daftar.length + ': ' + li._d.dokumen;
             var f2 = fdBaru('sync_dok'); f2.set('kategori', CFG.kategori); f2.set('idx', String(li._d.idx));
             return post(f2).then(function (r) { ok++; berubah = true; li.className = 'ok'; li._st.textContent = '✓'; li._st.title = r.message || ''; })
-              .catch(function (e) { gagal++; li.className = 'gagal'; li._st.textContent = '!'; li._st.title = e.message; if (e.data && e.data.offline) { putus = true; cekApi(); } })
-              .then(function () { i++; bar.style.width = Math.round(100 * i / pilih.length) + '%'; return lanjut(); });
+              .catch(function (e) { gagalLi.push(li); li.className = 'gagal'; li._st.textContent = '!'; li._st.title = e.message; if (e.data && e.data.offline) { putus = true; cekApi(); } })
+              .then(function () { i++; bar.style.width = Math.round(100 * i / daftar.length) + '%'; return lanjut(); });
           }
-          lanjut().then(function () {
-            t2.no.replaceChildren(ikon(gagal ? 'bi-exclamation-lg' : 'bi-check-lg'));
-            t2.el.classList.remove('is-aktif'); if (!gagal) t2.el.classList.add('is-ok');
+          return lanjut().then(function () {
+            var g = gagalLi.length;
+            t2.no.replaceChildren(ikon(g ? 'bi-exclamation-lg' : 'bi-check-lg'));
+            t2.el.classList.remove('is-aktif'); if (!g) t2.el.classList.add('is-ok');
             if (ok) catat('Langkah 2: dokumen', ok + ' dokumen berhasil ditarik ke repository', true);
-            if (gagal) catat('Sebagian dokumen gagal', gagal + ' dokumen belum berhasil' + (putus ? ' (API BKN terputus)' : '') + '. Arahkan kursor ke tanda ! untuk detail.', false);
-            selesai(!gagal, gagal ? 'Sync selesai dengan catatan' : 'Sync selesai', ok + ' dokumen ditarik' + (gagal ? ', ' + gagal + ' gagal.' : '.'));
-            tutupAkhir(!gagal);
+            if (g) catat('Sebagian dokumen gagal', g + ' dokumen belum berhasil' + (putus ? ' (API BKN terputus)' : '') + '. Arahkan kursor ke tanda ! untuk detail.', false);
+            selesai(!g, g ? 'Sync selesai dengan catatan' : 'Sync selesai', ok + ' dokumen ditarik' + (g ? ', ' + g + ' gagal.' : '.') + (list.length - antre.length ? ' ' + (list.length - antre.length) + ' sudah ada (tidak ditarik ulang).' : ''));
+            modalSibuk = false;
+            kaki(g ? [tombol('Tarik ulang yang gagal (' + g + ')', 'rw-btn--primary', 'bi-arrow-repeat', function () { gagalLi.forEach(function (li) { li.className = ''; li._st.textContent = ''; }); jalankan(gagalLi.slice()); })] : []);
           });
-        });
-      }).catch(function (e) {
-        t2.isi.replaceChildren(info(e.message, 'kuning', 'bi-exclamation-triangle'));
-        selesai(false, 'Daftar dokumen gagal dimuat', 'Data riwayat sudah tersinkron. Coba ulangi sync untuk menarik dokumen.');
-        tutupAkhir(false);
-      });
+        }
+        if (!antre.length) {
+          bar.style.width = '100%';
+          t2.el.classList.remove('is-aktif'); t2.el.classList.add('is-ok'); t2.no.replaceChildren(ikon('bi-check-lg'));
+          selesai(true, 'Sync selesai', 'Semua dokumen sudah ada di repository (tidak ditarik ulang).');
+          modalSibuk = false; kaki(); return;
+        }
+        jalankan(antre);
+      }).catch(function (e) { gagalTahap(t2, e, function () { langkah2(siapkan); }); });
     }
 
-    mulai.addEventListener('click', function () {
-      modalSibuk = true; mulai.disabled = batal.disabled = true;
+    /* Tahap 1: tarik data, lalu otomatis lanjut ke Tahap 2 */
+    function langkah1() {
+      modalSibuk = true; kaki([]);
       ik.replaceChildren(el('span', 'rw-spin'));
       judul.textContent = 'Langkah 1: menarik data…'; teks.textContent = 'Mohon tunggu, jangan tutup halaman ini.';
+      t1.no.textContent = '1';
       t1.isi.hidden = false; t1.isi.replaceChildren(el('div', 'rw-progress', ''));
       var bar = el('span'); t1.isi.firstChild.append(bar); bar.style.width = '35%';
       var fd = fdBaru('sync_data'); fd.set('kategori', CFG.kategori);
@@ -1827,27 +1876,17 @@
         t1.isi.hidden = true;
         catat('Langkah 1: data', j.message, true);
         if (!j.dokumen) {
-          t1.el.classList.add('is-ok'); t1.no.replaceChildren(ikon('bi-check-lg'));
+          t1.el.classList.remove('is-aktif'); t1.el.classList.add('is-ok'); t1.no.replaceChildren(ikon('bi-check-lg'));
           t2.ket.textContent = 'Tidak ada dokumen di SIASN';
           selesai(true, 'Sync selesai', 'Data riwayat ' + nama + ' sudah sesuai SIASN.');
-          tutupAkhir(true); return;
+          modalSibuk = false; kaki(); return;
         }
-        langkah2(j.dokumen);
-      }).catch(function (e) {
-        t1.isi.replaceChildren(info(e.message, 'kuning', 'bi-exclamation-triangle'));
-        t1.no.replaceChildren(ikon('bi-exclamation-lg'));
-        var off = e.data && e.data.offline;
-        if (off) cekApi();
-        badge(off ? 'API BKN tidak terhubung' : 'Sync belum berhasil', e.message, false);
-        selesai(false, off ? 'API BKN tidak terhubung' : 'Sync belum berhasil', 'Data di SIMPEG tidak diubah.');
-        modalSibuk = false;
-        mulai.disabled = batal.disabled = false; $('span', mulai).textContent = 'Coba lagi';
-      });
-    });
-    kon.janji.then(function (j) {
-      if (j.bkn && !j.bkn.ok) { teks.textContent = 'API BKN sedang tidak terhubung. Sync mungkin gagal; coba beberapa saat lagi.'; }
-    });
-    bukaModal('Sync SIASN', box, [batal, mulai], { kelas: 'rw-modal--sync', fokus: mulai });
+        setTimeout(function () { langkah2(false); }, 600);   // lanjut otomatis seperti SIMPEG
+      }).catch(function (e) { gagalTahap(t1, e, langkah1); });
+    }
+
+    bukaModal('Sync SIASN · ' + (hanyaDok ? 'Tahap 2' : 'Tahap 1 + 2'), box, [], { kelas: 'rw-modal--sync' });
+    if (hanyaDok) langkah2(true); else langkah1();
   }
 
   /* ---------- tombol halaman ---------- */
@@ -1862,7 +1901,10 @@
     if (!b || (modalEl && modalEl.contains(b))) return;
     var idx = b.dataset.idx !== undefined ? +b.dataset.idx : -1, r = BARIS[idx];
     switch (b.dataset.rw) {
-      case 'lihat': lihat(idx, b.dataset.dok); break;
+      case 'lihat':   // klik chip dokumen = popup dokumen saja (seperti SIMPEG); tombol Lihat = rincian
+        if (b.dataset.dok && r && r.id_rw) bukaPdf({ url: urlRiwayat(r, b.dataset.dok) }, String(b.title || 'Dokumen').replace(/^Lihat /, ''));
+        else lihat(idx, b.dataset.dok);
+        break;
       case 'ubah':
         if (r && r.usulan && usulanById(r.usulan)) lihatUsulan(usulanById(r.usulan)); else if (r) bukaForm(r.jenis, 'ubah', r, null);
         break;
@@ -1876,7 +1918,7 @@
       case 'u-edit': if (usulanById(b.dataset.uid)) editUsulan(usulanById(b.dataset.uid)); break;
       case 'u-batal': if (usulanById(b.dataset.uid)) batalkan(usulanById(b.dataset.uid)); break;
       case 'usulan': togelUsulan(); break;
-      case 'sync': bukaSync(); break;
+      case 'sync': menuSync(b); break;
     }
   });
   document.addEventListener('keydown', function (e) {

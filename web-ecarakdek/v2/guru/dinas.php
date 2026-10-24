@@ -71,8 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {   // CSRF diperiksa bootstrap.php
 }
 
 require __DIR__ . '/includes/repository.php';
-$page = 'cuti'; $pageTitle = 'Pengajuan Dinas';
+$page = 'absensi'; $pageTitle = 'Pengajuan Dinas';
 require __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/unggah.php';
 $list = api_request(API_TEMANKU, 'GET', '/portal/dinas/pengajuan')['data'] ?? [];
 $kecamatan = api_request(API_TEMANKU, 'GET', '/wilayah/selayar')['data'] ?? [];
 $kabkota = api_request(API_TEMANKU, 'GET', '/wilayah/kabkota')['data'] ?? [];
@@ -122,7 +123,7 @@ $label = ['diajukan' => 'Menunggu persetujuan', 'disetujui' => 'Disetujui', 'dit
       <label>Tanggal selesai<input type="date" name="tanggal_akhir" required></label>
     </div>
     <label>Kegiatan<textarea name="keterangan" rows="2" maxlength="1000" required placeholder="Contoh: Monitoring dan evaluasi"></textarea></label>
-    <label>Surat tugas (PDF, maks. 2 MB)<input type="file" name="surat" accept="application/pdf" required></label>
+    <?= unggah_field('surat', 'Surat tugas', 'application/pdf', 'PDF', true) ?>
     <button type="submit">Kirim pengajuan</button>
   </form>
   <div class="dns__card">
