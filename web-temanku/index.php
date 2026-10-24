@@ -1,13 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
-// [persiapan-akun] SEMENTARA: pegawai diarahkan sekali per sesi ke persiapan.php (saklar di fitur.php)
-require_once __DIR__ . '/app/fitur.php';
-if (empty($_SESSION['persiapan_selesai']) && fitur_aktif('persiapan_akun')) {
-    require_login();
-    if (can('absensi.view')) redirect('persiapan.php');
-}
-// [/persiapan-akun]
+// Setelah login pegawai langsung ke Beranda (tidak lagi dialihkan ke persiapan.php / absen).
 require __DIR__ . '/includes/repository.php';
 
 $page      = 'beranda';

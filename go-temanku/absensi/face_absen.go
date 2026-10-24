@@ -181,6 +181,8 @@ type absenOpsi struct {
 	LokasiInfo string `json:"lokasi,omitempty"`
 	Jarak      *int   `json:"jarak_m,omitempty"` // meter ke area tujuan (bila diperiksa)
 	Jadwal     string `json:"jadwal,omitempty"`  // masuk shift: sesuai | beda (jadwal shift APEL)
+	// Sesuai jadwal sebelum lokasi diperiksa: dipakai tombol "Absen Sekarang" (menu presensi) tanpa membaca GPS.
+	JadwalAktif bool `json:"jadwal_aktif"`
 
 	pola    polaKerja
 	row     *absenRow
@@ -1030,6 +1032,7 @@ func absenStatus(c *gin.Context, nip, pnsID, unit string, now time.Time, lokasi 
 	}
 	// Tombol aktif hanya bila jadwal DAN lokasi sesuai; alasan lokasi ditampilkan bila belum.
 	for i := range opsi {
+		opsi[i].JadwalAktif = opsi[i].Aktif
 		if !opsi[i].Aktif {
 			continue
 		}

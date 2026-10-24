@@ -61,9 +61,14 @@ $judulBulan = ($bulanPanjang[2] ?? '') . ' ' . ($bulanPanjang[3] ?? '');
       <button type="submit" name="aksi" value="keluar" disabled>Absen Keluar</button>
     </form>
     <?php /* [absen-wajah] tombol Absen (wajah / lokasi sesuai metode unit) menggantikan form GPS bila saklar aktif */ require_once __DIR__ . '/app/fitur.php'; if (fitur_aktif('absen_wajah')): $pakaiWajah = temanku_metode_absen() === 'WAJAH'; ?>
-    <a class="attendance-page__face" href="<?= url('absen.php') ?>"><i class="bi <?= $pakaiWajah ? 'bi-person-bounding-box' : 'bi-geo-alt-fill' ?>"></i> <?= $pakaiWajah ? 'Absen dengan Wajah' : 'Absen' ?></a>
-    <a class="attendance-page__upacara" href="<?= url('absen.php?mode=upacara') ?>"><i class="bi bi-flag-fill"></i> Absen Upacara</a>
-    <style>#formAbsen{display:none!important}.attendance-page__face{display:flex;align-items:center;justify-content:center;gap:10px;margin:14px 0 6px;padding:14px;border-radius:14px;background:#fff;color:#123f40;font-weight:800;text-decoration:none}.attendance-page__face i{font-size:22px;color:#168f90}.attendance-page__upacara{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 6px;padding:10px;border-radius:12px;background:#ffffff26;color:#fff;font-weight:700;font-size:13.5px;text-decoration:none}</style>
+    <?php /* satu tombol: masuk/pulang/WFA/upacara dipilih di halaman Absen; abu-abu bila sudah absen / libur / lewat jam */ ?>
+    <a class="attendance-page__face" href="<?= url('absen.php') ?>" data-absen-tombol="segera"
+       data-status="<?= e(url('wajah_api.php')) ?>?action=absen/status" data-csrf="<?= e(csrf_token()) ?>">
+      <i class="bi <?= $pakaiWajah ? 'bi-person-bounding-box' : 'bi-geo-alt-fill' ?>"></i>
+      <span class="absen-tombol__teks"><span data-absen-judul>Absen Sekarang</span><small data-absen-ket hidden></small></span>
+    </a>
+    <style>#formAbsen{display:none!important}.attendance-page__face{display:flex;align-items:center;justify-content:center;gap:10px;margin:14px 0 6px;padding:14px;border-radius:14px;background:#fff;color:#123f40;font-weight:800;text-decoration:none}.attendance-page__face i{font-size:22px;color:#168f90}.attendance-page__face .absen-tombol__teks{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2}.attendance-page__face small{font-size:11.5px;font-weight:600;color:#5f7474}.attendance-page__face.is-memuat{opacity:.8}.attendance-page__face.is-off{background:#e5e7eb;color:#6b7280;cursor:not-allowed}.attendance-page__face.is-off i{color:#9ca3af}</style>
+    <script src="<?= e(url('assets/js/absen_tombol.js')) ?>?v=<?= (int) @filemtime(__DIR__ . '/assets/js/absen_tombol.js') ?>" defer></script>
     <?php endif; /* [/absen-wajah] */ ?>
     <?php if ($hariIniInfo): $ji = (string) ($hariIniInfo['jenis'] ?? ''); /* [temanku] jenis hari ini dari rekap APEL */ ?>
       <p class="attendance-page__hours" style="font-weight:700"><?php

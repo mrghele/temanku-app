@@ -70,7 +70,7 @@ try {
     <div class="absen-pilih" id="absen-pilih" hidden role="dialog" aria-modal="true" aria-labelledby="absen-pilih-judul">
       <div class="absen-pilih__kotak">
         <h2 id="absen-pilih-judul">Absen masuk hari ini</h2>
-        <p class="face-note">Pilih tempat bekerja hari ini.</p>
+        <p class="face-note">Pilih jenis absen masuk hari ini (kantor, WFA, atau upacara).</p>
         <div class="absen-list" id="absen-pilih-list"></div>
         <button type="button" class="face-link" id="absen-pilih-batal">Batal</button>
       </div>

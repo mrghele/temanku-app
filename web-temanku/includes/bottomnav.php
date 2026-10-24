@@ -21,21 +21,22 @@
     <button class="presensi-sheet__handle" type="button" data-close-sheet aria-label="Tutup menu presensi"></button>
     <h2 id="presensi-sheet-title">Presensi &amp; Kehadiran</h2>
     <p>Catat presensi melalui lokasi GPS sesuai titik APEL.</p>
-    <a class="presensi-sheet__primary" href="<?= url('absensi.php') ?>#formAbsen"><i class="bi bi-fingerprint"></i> Absen Sekarang</a>
-    <!-- [simulasi-menu] SEMENTARA: simulasi absen dengan wajah, tidak dicatat (saklar di fitur.php) -->
-    <?php require_once __DIR__ . '/../app/fitur.php'; if (fitur_aktif('absen_wajah')): ?>
-    <a class="presensi-sheet__face" href="<?= url('absen.php?mode=upacara') ?>"><i class="bi bi-flag-fill"></i><span><strong>Absen Upacara</strong><small>Senin, tanggal 17 &amp; hari besar sesuai jadwal</small></span></a>
-    <?php endif; if (fitur_aktif('simulasi_menu') && temanku_metode_absen() === 'WAJAH'): ?>
-    <a class="presensi-sheet__face" href="<?= url('wajah.php') ?>#simulasi"><i class="bi bi-person-bounding-box"></i><span><strong>Simulasi Absen Wajah</strong><small>Uji wajah Anda, tidak dicatat sebagai absen</small></span></a>
+    <?php /* Satu tombol "Absen Sekarang": masuk, pulang, WFA & upacara dipilih di halaman Absen.
+             Abu-abu bila sudah absen, hari libur/akhir pekan, belum waktunya, atau lewat jam (assets/js/absen_tombol.js). */
+      require_once __DIR__ . '/../app/fitur.php';
+      $urlAbsen = fitur_aktif('absen_wajah') ? url('absen.php') : url('absensi.php') . '#formAbsen'; ?>
+    <a class="presensi-sheet__primary" href="<?= e($urlAbsen) ?>" data-absen-tombol="menu"
+       data-status="<?= e(url('wajah_api.php')) ?>?action=absen/status" data-csrf="<?= e(csrf_token()) ?>">
+      <i class="bi bi-fingerprint"></i><span class="absen-tombol__teks"><span data-absen-judul>Absen Sekarang</span><small data-absen-ket hidden></small></span>
+    </a>
     <style>
-      .presensi-sheet__face{display:flex;align-items:center;gap:12px;margin-top:10px;padding:11px 14px;border-radius:15px;background:#e6f3f3;color:#123f40;text-decoration:none}
-      .presensi-sheet__face:hover{background:#d6ecec;color:#123f40}
-      .presensi-sheet__face i{font-size:22px;color:#168f90}
-      .presensi-sheet__face strong{display:block;font-size:13.5px}
-      .presensi-sheet__face small{display:block;font-size:11px;color:#5f7474;font-weight:500}
+      .presensi-sheet__primary .absen-tombol__teks{display:flex;flex-direction:column;align-items:flex-start;line-height:1.2}
+      .presensi-sheet__primary small{font-size:11.5px;font-weight:500;opacity:.9}
+      .presensi-sheet__primary.is-memuat{opacity:.75}
+      .presensi-sheet__primary.is-off,.presensi-sheet__primary.is-off:hover{background:#e5e7eb!important;color:#6b7280!important;box-shadow:none!important;cursor:not-allowed}
+      .presensi-sheet__primary.is-off i{color:#9ca3af!important}
     </style>
-    <?php endif; ?>
-    <!-- [/simulasi-menu] -->
+    <script src="<?= e(url('assets/js/absen_tombol.js')) ?>?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/absen_tombol.js') ?>" defer></script>
     <div class="presensi-sheet__actions">
       <a href="<?= url('absensi.php') ?>#kalender"><span class="ico--hijau"><i class="bi bi-calendar-check-fill"></i></span>Rekap</a>
       <a href="<?= url('absensi.php') ?>#aksi-wfa"><span class="ico--biru"><i class="bi bi-house-door-fill"></i></span>WFA</a>

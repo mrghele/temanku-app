@@ -899,8 +899,8 @@ async function loadAbsen() {
     statusTerakhir = Date.now();
     posisiTerkirim = gps.location || null;
     mulaiPantauGPS();
-    // Menu Absen Upacara hanya berisi upacara; halaman absen biasa tanpa upacara.
-    data.opsi = (data.opsi || []).filter(o => (o.aksi === 'upacara') === (ABSEN_MODE === 'upacara'));
+    // Upacara kini dipilih bersama WFO/FWA di tombol absen masuk; tautan lama ?mode=upacara hanya menampilkan upacara.
+    data.opsi = (data.opsi || []).filter(o => ABSEN_MODE !== 'upacara' || o.aksi === 'upacara');
     const jam = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const jarak = data.opsi.filter(o => typeof o.jarak_m === 'number').map(o => o.jarak_m);
     if (gps.location) lokasi.textContent = `📍 Akurasi ±${Math.round(gps.location.accuracy_m)} m` + (jarak.length ? ` · ${Math.min(...jarak).toLocaleString('id-ID')} m ke area absen` : '') + ` · diperbarui ${jam}`;
@@ -947,17 +947,25 @@ async function loadAbsen() {
     const pakaiWajah = absenMetode === 'WAJAH';
     wajib.hidden = !pakaiWajah || enrolled;   // wajib rekam wajah hanya untuk unit bermetode wajah
     const groups = { masuk: [], pulang: [] };
-    const fwa = (data.opsi || []).find(o => o.aksi === 'wfa');
-    const wfo = fwa && (data.opsi || []).find(o => o.aksi === 'masuk' && o.pola === fwa.pola);
+    // WFA (FWA) dan upacara digabung dengan absen masuk kantor (WFO) menjadi satu tombol pilihan.
+    const fwa = ABSEN_MODE === 'upacara' ? null : (data.opsi || []).find(o => o.aksi === 'wfa');
+    const upacara = ABSEN_MODE === 'upacara' ? [] : (data.opsi || []).filter(o => o.aksi === 'upacara');
+    const dasar = fwa || upacara[0];
+    const wfo = dasar && (data.opsi || []).find(o => o.aksi === 'masuk' && o.pola === dasar.pola);
     for (const o of data.opsi || []) {
-      if (fwa && (o === fwa || o === wfo)) continue;      // digabung menjadi satu tombol pilihan
+      if (dasar && (o === fwa || o === wfo || upacara.includes(o))) continue;
       (o.aksi === 'pulang' ? groups.pulang : groups.masuk).push(o);
     }
-    if (fwa) {
-      pilihanMasuk = [wfo && Object.assign({}, wfo, { label: 'WFO — bekerja di kantor' }), Object.assign({}, fwa, { label: 'FWA — bekerja dari wilayah Selayar' })].filter(Boolean);
+    if (dasar) {
+      pilihanMasuk = [
+        wfo && Object.assign({}, wfo, { label: 'WFO — bekerja di kantor' }),
+        fwa && Object.assign({}, fwa, { label: 'FWA — bekerja dari wilayah Selayar' }),
+        ...upacara,
+      ].filter(Boolean);
       const aktif = pilihanMasuk.some(o => o.aktif);
-      groups.masuk.unshift({ aksi: 'pilih-masuk', pola: fwa.pola, label: 'Absen masuk (WFO / FWA)', tanggal_dinas: fwa.tanggal_dinas, aktif,
-        alasan: aktif ? '' : pilihanMasuk.map(o => o.alasan).filter(Boolean)[0] || 'Belum tersedia', lokasi: aktif ? 'Pilih WFO atau FWA' : '' });
+      const nama = [wfo && 'WFO', fwa && 'FWA', upacara.length && 'Upacara'].filter(Boolean).join(' / ');
+      groups.masuk.unshift({ aksi: 'pilih-masuk', pola: dasar.pola, label: `Absen masuk (${nama})`, tanggal_dinas: dasar.tanggal_dinas, aktif,
+        alasan: aktif ? '' : pilihanMasuk.map(o => o.alasan).filter(Boolean)[0] || 'Belum tersedia', lokasi: aktif ? `Pilih ${nama}` : '' });
     }
     tampilkanLaporan(Boolean(data.fwa_hari_ini));
     for (const [key, list] of Object.entries(groups)) {
@@ -1008,7 +1016,7 @@ function bukaPilihMasuk() {
     b.append(label, small);
     b.addEventListener('click', () => {
       $('#absen-pilih').hidden = true;
-      const extra = { pola: o.pola, tanggal_dinas: o.tanggal_dinas, label: o.aksi === 'wfa' ? 'Masuk FWA' : 'Masuk WFO' };
+      const extra = { pola: o.pola, tanggal_dinas: o.tanggal_dinas, label: { wfa: 'Masuk FWA', upacara: o.label }[o.aksi] || 'Masuk WFO' };
       if (absenMetode === 'WAJAH') run('absen', o.aksi, extra); else absenTanpaWajah(o.aksi, extra);
     });
     return b;
